@@ -313,6 +313,68 @@ export interface PerformanceMetrics {
     processingTime: number;
 }
 
+// Plugin API interfaces
+export interface ContextProvider {
+    id: string;
+    name: string;
+    version: string;
+    getContext(): Promise<StructuredData>;
+    getSchema(): ContextSchema;
+    supportsRealtime(): boolean;
+}
+
+export interface ContextSchema {
+    type: string;
+    properties: Record<string, SchemaProperty>;
+    required?: string[];
+}
+
+export interface SchemaProperty {
+    type: string;
+    description?: string;
+    format?: string;
+    items?: SchemaProperty;
+    properties?: Record<string, SchemaProperty>;
+}
+
+export interface PluginInfo {
+    name: string;
+    version: string;
+    capabilities: string[];
+    endpoint?: string;
+    authentication?: AuthConfig;
+}
+
+export interface AuthConfig {
+    type: 'none' | 'bearer' | 'basic' | 'custom';
+    token?: string;
+    credentials?: Record<string, string>;
+}
+
+export interface PluginGuidelines {
+    contextAPI: {
+        endpoint: string;
+        authentication?: AuthConfig;
+        schema: ContextSchema;
+    };
+    semanticMarkup: {
+        required: string[];
+        recommended: string[];
+        custom: CustomMarkupSpec[];
+    };
+    performance: {
+        cacheHeaders: boolean;
+        compression: boolean;
+        streaming: boolean;
+    };
+}
+
+export interface CustomMarkupSpec {
+    attribute: string;
+    values: string[];
+    description: string;
+}
+
 // Enums
 export enum MonitoringState {
     STOPPED = 'stopped',

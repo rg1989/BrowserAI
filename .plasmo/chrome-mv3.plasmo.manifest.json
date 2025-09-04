@@ -18,7 +18,7 @@
   },
   "version": "1.0.0",
   "author": "",
-  "name": "Spotlight Browser Extension",
+  "name": "DEV | Spotlight Browser Extension",
   "description": "A Spotlight-like browser extension with configurable workflows",
   "content_scripts": [
     {
