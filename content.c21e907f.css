@@ -106,7 +106,7 @@
   width: 100%;
   max-width: 640px;
   margin: 0 20px;
-  padding: 16px;
+  padding: 8px;
   animation: .2s ease-out spotlight-slide-in;
   overflow: hidden;
   box-shadow: 0 20px 60px #0000004d, 0 8px 32px #0003, inset 0 1px #ffffff1a;

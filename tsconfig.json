@@ -22,6 +22,17 @@
   },
   "include": [
     ".plasmo/index.d.ts",
-    "src"
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "build",
+    "coverage",
+    "e2e",
+    "**/__tests__/**",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "src/setupTests.ts"
   ]
 }

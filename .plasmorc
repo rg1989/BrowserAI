@@ -1,0 +1,13 @@
+{
+  "exclude": [
+    "**/__tests__/**",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "e2e/**",
+    "coverage/**",
+    "playwright-report/**",
+    "scripts/**",
+    "*.config.*",
+    "setupTests.ts"
+  ]
+}
