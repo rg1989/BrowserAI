@@ -106,6 +106,7 @@
   width: 100%;
   max-width: 640px;
   margin: 0 20px;
+  padding: 16px;
   animation: .2s ease-out spotlight-slide-in;
   overflow: hidden;
   box-shadow: 0 20px 60px #0000004d, 0 8px 32px #0003, inset 0 1px #ffffff1a;
@@ -190,7 +191,8 @@
 
 .chat-header {
   border-bottom: 1px solid #ffffff1a;
-  padding: 16px 20px 12px;
+  margin-bottom: 16px;
+  padding: 0 4px 12px;
 }
 
 .chat-title {
@@ -210,13 +212,14 @@
 .chat-messages {
   flex: 1;
   min-height: 0;
-  padding: 16px 0;
+  padding: 0 4px;
   overflow-y: auto;
 }
 
 .chat-input {
   border-top: 1px solid #ffffff1a;
-  padding: 12px 16px;
+  margin-top: 16px;
+  padding: 12px 4px 0;
 }
 
 .chat-messages::-webkit-scrollbar {

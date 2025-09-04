@@ -19,6 +19,7 @@
     opacity: 0;
     backdrop-filter: blur(0px);
   }
+
   to {
     opacity: 1;
     backdrop-filter: blur(8px);
@@ -37,6 +38,7 @@
   backdrop-filter: blur(40px);
   overflow: hidden;
   animation: spotlight-slide-in 0.2s ease-out;
+  padding: 8px;
 }
 
 @keyframes spotlight-slide-in {
@@ -44,6 +46,7 @@
     opacity: 0;
     transform: translateY(-20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
