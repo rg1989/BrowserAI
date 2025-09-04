@@ -86,9 +86,15 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
   ]);
 
   const handleBack = useCallback(() => {
-    if (workflowManager.goBack()) {
+    console.log("SpotlightOverlay.handleBack() called");
+    const canGoBack = workflowManager.goBack();
+    console.log("WorkflowManager.goBack() returned:", canGoBack);
+
+    if (canGoBack) {
+      console.log("Updating workflow state after going back");
       updateWorkflowState();
     } else {
+      console.log("Cannot go back, closing overlay");
       onClose();
     }
   }, [workflowManager, updateWorkflowState, onClose]);

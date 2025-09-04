@@ -2,32 +2,36 @@
 
 ## Introduction
 
-This feature involves creating a browser extension that provides a Spotlight-like overlay interface activated by CMD+K. The extension will display a searchable dropdown with configurable workflows, including AI Ask, AI Agent, and Close options. The interface will support keyboard navigation and multi-step flows with visual breadcrumbs.
+This feature involves creating a browser extension that provides a Spotlight-like overlay interface activated by Ctrl+/ (Windows) or Cmd+/ (Mac). The extension will display a searchable dropdown with configurable workflows, including AI Ask, AI Agent, and Close options. The interface will support hierarchical keyboard navigation and multi-step flows with visual breadcrumbs.
 
 ## Requirements
 
 ### Requirement 1
 
-**User Story:** As a user, I want to activate a Spotlight-like overlay using CMD+K, so that I can quickly access various workflows without leaving my current page.
+**User Story:** As a user, I want to activate a Spotlight-like overlay using Ctrl+/ (Windows) or Cmd+/ (Mac), so that I can quickly access various workflows without leaving my current page.
 
 #### Acceptance Criteria
 
-1. WHEN the user presses CMD+K THEN the system SHALL display an overlay on top of the current page
+1. WHEN the user presses Ctrl+/ (Windows) or Cmd+/ (Mac) THEN the system SHALL display an overlay on top of the current page
 2. WHEN the overlay opens THEN the system SHALL focus the cursor in the search field
 3. WHEN the overlay is displayed THEN the system SHALL show a dropdown with available workflow options
 4. WHEN the overlay opens THEN the system SHALL blur the background page content
+5. WHEN the user presses the activation shortcut again THEN the system SHALL close the overlay
 
 ### Requirement 2
 
-**User Story:** As a user, I want to navigate the interface using keyboard shortcuts, so that I can efficiently interact with workflows without using a mouse.
+**User Story:** As a user, I want to navigate the interface using keyboard shortcuts with hierarchical navigation, so that I can efficiently interact with workflows without using a mouse.
 
 #### Acceptance Criteria
 
-1. WHEN the user presses arrow keys THEN the system SHALL move selection up and down through available options
-2. WHEN the user presses Enter THEN the system SHALL select the currently highlighted option
-3. WHEN the user presses Escape THEN the system SHALL go back one step in the workflow
-4. WHEN the user presses Escape on the initial step THEN the system SHALL close the overlay
-5. WHEN navigating options THEN the system SHALL provide visual feedback for the selected item
+1. WHEN the user presses arrow keys THEN the system SHALL move selection up and down through available options (except when typing in input fields)
+2. WHEN the user presses Enter THEN the system SHALL select the currently highlighted option OR send a message if in chat input
+3. WHEN the user presses Escape THEN the system SHALL go back one step in the workflow hierarchy
+4. WHEN the user presses Escape at the initial workflow list THEN the system SHALL close the overlay
+5. WHEN the user presses Escape in a chat interface THEN the system SHALL return to the workflow list
+6. WHEN navigating options THEN the system SHALL provide visual feedback for the selected item
+7. WHEN typing in input fields THEN navigation keys SHALL be ignored except for Escape
+8. WHEN in chat input THEN Shift+Enter SHALL create a new line instead of sending the message
 
 ### Requirement 3
 
@@ -56,16 +60,19 @@ This feature involves creating a browser extension that provides a Spotlight-lik
 
 ### Requirement 5
 
-**User Story:** As a user, I want to interact with a chat interface in AI workflows, so that I can communicate with AI services.
+**User Story:** As a user, I want to interact with a chat interface in AI workflows with proper keyboard handling, so that I can communicate with AI services efficiently.
 
 #### Acceptance Criteria
 
 1. WHEN in AI Ask or AI Agent workflow THEN the system SHALL display a chat interface in the dropdown
 2. WHEN the chat interface loads THEN the system SHALL focus the prompt input field
-3. WHEN the chat interface is active THEN the main search field SHALL be disabled and empty
+3. WHEN the chat interface is active THEN the main search field SHALL show the workflow breadcrumb
 4. WHEN in chat mode THEN the system SHALL provide a send button for submitting messages
-5. WHEN messages are sent THEN the system SHALL display them in the chat history
-6. WHEN implementing chat THEN the system SHALL provide an interface for future AI model integration
+5. WHEN the user presses Enter in chat input THEN the system SHALL send the message
+6. WHEN the user presses Shift+Enter in chat input THEN the system SHALL create a new line
+7. WHEN the user presses Escape in chat interface THEN the system SHALL navigate back to workflow list
+8. WHEN messages are sent THEN the system SHALL display them in the chat history
+9. WHEN implementing chat THEN the system SHALL provide an interface for future AI model integration
 
 ### Requirement 6
 

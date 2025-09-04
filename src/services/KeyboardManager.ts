@@ -68,6 +68,12 @@ export class KeyboardManager {
     // Only handle other keys when overlay is active and handlers are available
     if (!this.isActive || !this.handlers) return;
 
+    // Don't intercept keys when user is typing in input elements, except for Escape
+    const target = event.target as HTMLElement;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA") && event.key !== "Escape") {
+      return;
+    }
+
     switch (event.key) {
       case "ArrowUp":
         event.preventDefault();

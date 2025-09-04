@@ -57,15 +57,28 @@ graph TB
 
 #### WorkflowManager
 
-- **Purpose**: Manages workflow navigation, state, and configuration loading
+- **Purpose**: Manages workflow navigation, state, and configuration loading with navigation stack support
 - **Methods**:
   - `loadConfig(): Promise<WorkflowConfig>`
   - `navigateToWorkflow(workflowId: string, stepData?: Record<string, any>): void`
-  - `goBack(): void`
+  - `goBack(): boolean` - Returns true if navigation occurred, false if already at initial state
   - `getCurrentWorkflows(): Workflow[]`
   - `getBreadcrumbPath(): string`
   - `getCurrentWorkflow(): Workflow | null`
   - `isSearchEnabled(): boolean`
+  - `isAtInitialState(): boolean` - Checks if currently at the root workflow list
+  - `resetToInitial(): void` - Resets navigation to initial state
+
+#### Navigation Stack Management
+
+The WorkflowManager maintains a navigation stack (`WorkflowPath`) that tracks:
+- **steps**: Array of `WorkflowStep` objects representing the navigation history
+- **current**: Current workflow ID or "initial" for the root state
+
+When navigating:
+- Forward navigation pushes new steps onto the stack
+- Back navigation pops steps from the stack
+- Breadcrumb display shows the full navigation path
 
 #### WorkflowRenderer
 
@@ -161,12 +174,28 @@ interface WorkflowComponentProps {
 
 #### KeyboardManager
 
-- **Purpose**: Centralized keyboard event handling
+- **Purpose**: Centralized keyboard event handling with hierarchical navigation support
 - **Events**:
-  - `CMD+K`: Toggle overlay visibility
-  - `ArrowUp/ArrowDown`: Navigate options
-  - `Enter`: Select current option
-  - `Escape`: Go back or close
+  - `Ctrl+/` (Windows) / `Cmd+/` (Mac): Toggle overlay visibility
+  - `ArrowUp/ArrowDown`: Navigate options (disabled when typing in input fields)
+  - `Enter`: Select current option or send message in chat (context-aware)
+  - `Escape`: Hierarchical back navigation - goes back one step in workflow, only closes overlay when at initial state
+  - `Shift+Enter`: New line in chat input (handled by PromptInput component)
+
+#### Hierarchical Navigation Behavior
+
+The Escape key implements a hierarchical navigation system:
+
+1. **In Chat Interface**: First Escape press navigates back to workflow list
+2. **In Workflow List (Initial State)**: Escape press closes the overlay entirely
+3. **Multi-step Workflows**: Each Escape press goes back one level in the navigation stack
+4. **Click Outside**: Immediately closes overlay regardless of current state
+
+#### Input Field Handling
+
+- **Navigation Keys**: Arrow keys and Enter are ignored when user is typing in INPUT or TEXTAREA elements
+- **Escape Key**: Always works for navigation, even when focused on input fields
+- **Chat Enter**: Enter key in chat textarea sends message instead of selecting workflow options
 
 ## Data Models
 
@@ -276,11 +305,13 @@ The workflow configuration will be stored in `workflow-config.json`:
 
 ### End-to-End Testing with Playwright MCP
 
-- **Overlay Activation**: Test CMD+K opens overlay with focus on search field
-- **Keyboard Navigation**: Test arrow keys, enter, and escape functionality
+- **Overlay Activation**: Test Ctrl+/ (Windows) / Cmd+/ (Mac) opens overlay with focus on search field
+- **Keyboard Navigation**: Test arrow keys, enter, and hierarchical escape functionality
 - **Workflow Execution**: Test each workflow type (action, chat)
-- **Multi-step Navigation**: Test breadcrumb display and back navigation
-- **Chat Interface**: Test message input, sending, and display
+- **Multi-step Navigation**: Test breadcrumb display and hierarchical back navigation
+- **Chat Interface**: Test message input, sending, Enter key behavior, and Escape navigation
+- **Hierarchical Navigation**: Test Escape key goes back through workflow levels before closing
+- **Input Field Behavior**: Test that navigation keys are ignored when typing, except Escape
 
 ### Browser Compatibility Testing
 

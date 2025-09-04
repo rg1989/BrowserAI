@@ -83,18 +83,8 @@ class ContentScript {
       this.toggleOverlay();
     });
 
-    // Listen for escape key to close overlay when visible
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isOverlayVisible) {
-        // Let the SpotlightOverlay component handle escape first
-        // If it doesn't handle it (e.g., at root level), close the overlay
-        setTimeout(() => {
-          if (this.isOverlayVisible) {
-            this.hideOverlay();
-          }
-        }, 0);
-      }
-    });
+    // Escape key handling is managed by the SpotlightOverlay component
+    // through the KeyboardManager, so no additional handling needed here
   }
 
   private initializeReactRoot(): void {

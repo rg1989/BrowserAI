@@ -9,7 +9,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
   test.describe("AI Chat Workflow Scenarios", () => {
     test("should complete full AI Ask workflow", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate to AI Ask
@@ -43,7 +43,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
     });
 
     test("should handle AI Agent workflow with streaming", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate to AI Agent
@@ -64,7 +64,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
     });
 
     test("should handle chat input validation", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
       await page.locator("text=AI Ask").click();
       await page.waitForSelector(".chat-interface");
@@ -90,7 +90,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
     });
 
     test("should handle chat keyboard shortcuts", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
       await page.locator("text=AI Ask").click();
       await page.waitForSelector(".chat-interface");
@@ -115,7 +115,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
 
   test.describe("Search Workflow Scenarios", () => {
     test("should handle search workflow if available", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Look for search workflows
@@ -143,7 +143,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
     });
 
     test("should handle search with no results", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       const searchWorkflow = page
@@ -165,7 +165,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
     });
 
     test("should handle search result selection", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       const searchWorkflow = page
@@ -193,7 +193,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
 
   test.describe("Form Workflow Scenarios", () => {
     test("should handle form workflow if available", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Look for form workflows
@@ -232,7 +232,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
     });
 
     test("should handle form data display", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       const formWorkflow = page
@@ -266,7 +266,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
 
   test.describe("Multi-step Workflow Scenarios", () => {
     test("should handle search-to-form workflow sequence", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Look for a search workflow that leads to form
@@ -305,7 +305,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
     test("should handle complex navigation with back button", async ({
       page,
     }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate through multiple levels
@@ -336,7 +336,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
     test("should maintain workflow state during navigation", async ({
       page,
     }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate to chat and enter some text
@@ -363,7 +363,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
 
   test.describe("Error Scenarios", () => {
     test("should handle workflow execution errors", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Try to execute a workflow that might fail
@@ -386,7 +386,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
         }
       });
 
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       await page.locator("text=AI Ask").click();
@@ -422,7 +422,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
       });
 
       await page.goto("https://example.com");
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
 
       // Should still work with fallback configuration
       await page.waitForSelector(".spotlight-overlay", { timeout: 5000 });
@@ -435,7 +435,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
 
   test.describe("Accessibility Scenarios", () => {
     test("should support screen reader navigation", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Check for proper ARIA attributes
@@ -452,7 +452,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
       // Simulate high contrast mode
       await page.emulateMedia({ colorScheme: "dark" });
 
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Verify overlay is still visible and functional
@@ -468,7 +468,7 @@ test.describe("Workflow Scenario E2E Tests", () => {
       // Simulate reduced motion preference
       await page.emulateMedia({ reducedMotion: "reduce" });
 
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Overlay should still appear (just without animations)

@@ -11,7 +11,7 @@ export class WorkflowManager {
   private config: WorkflowConfig | null = null;
   private currentPath: WorkflowPath = { steps: [], current: "" };
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): WorkflowManager {
     if (!WorkflowManager.instance) {
@@ -53,10 +53,22 @@ export class WorkflowManager {
     // Add to path
     this.currentPath.steps.push(newStep);
     this.currentPath.current = workflowId;
+
+    console.log("Navigated to workflow:", workflowId, {
+      totalSteps: this.currentPath.steps.length,
+      currentPath: this.currentPath
+    });
   }
 
   public goBack(): boolean {
+    console.log("WorkflowManager.goBack() called", {
+      currentSteps: this.currentPath.steps.length,
+      current: this.currentPath.current,
+      steps: this.currentPath.steps
+    });
+
     if (this.currentPath.steps.length === 0) {
+      console.log("Already at initial state, cannot go back");
       return false; // Already at initial state
     }
 
@@ -68,8 +80,10 @@ export class WorkflowManager {
       const lastStep =
         this.currentPath.steps[this.currentPath.steps.length - 1];
       this.currentPath.current = lastStep.workflowId;
+      console.log("Navigated back to:", lastStep.workflowId);
     } else {
       this.currentPath.current = "initial";
+      console.log("Navigated back to initial state");
     }
 
     return true;
