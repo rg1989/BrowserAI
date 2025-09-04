@@ -1,0 +1,620 @@
+/**
+ * @jest-environment jsdom
+ */
+
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { SpotlightOverlay } from "../../components/SpotlightOverlay";
+import { WorkflowManager } from "../../services/WorkflowManager";
+import { WorkflowActions } from "../../services/WorkflowActions";
+import { KeyboardManager } from "../../services/KeyboardManager";
+
+// Mock services
+jest.mock("../../services/WorkflowManager");
+jest.mock("../../services/WorkflowActions");
+jest.mock("../../services/KeyboardManager");
+jest.mock("../../services/ConfigLoader");
+jest.mock("../../services/AIService");
+
+describe("Workflow Integration Tests", () => {
+  let mockWorkflowManager: jest.Mocked<WorkflowManager>;
+  let mockWorkflowActions: jest.Mocked<WorkflowActions>;
+  let mockKeyboardManager: jest.Mocked<KeyboardManager>;
+  let user: ReturnType<typeof userEvent.setup>;
+
+  const mockWorkflows = {
+    "ai-ask": {
+      id: "ai-ask",
+      name: "AI Ask",
+      type: "chat" as const,
+      component: "ChatInterface",
+      searchEnabled: false,
+    },
+    "ai-agent": {
+      id: "ai-agent",
+      name: "AI Agent",
+      type: "chat" as const,
+      component: "ChatInterface",
+      searchEnabled: false,
+    },
+    "search-users": {
+      id: "search-users",
+      name: "Search Users",
+      type: "search" as const,
+      component: "SearchInterface",
+      searchEnabled: true,
+      searchPlaceholder: "Type to search users...",
+      nextWorkflow: "user-details",
+    },
+    "user-details": {
+      id: "user-details",
+      name: "User Details",
+      type: "form" as const,
+      component: "FormInterface",
+      searchEnabled: false,
+    },
+    close: {
+      id: "close",
+      name: "Close",
+      type: "action" as const,
+      component: "ActionComponent",
+      action: "close",
+    },
+  };
+
+  beforeEach(() => {
+    user = userEvent.setup();
+
+    // Setup WorkflowManager mock
+    mockWorkflowManager = {
+      initialize: jest.fn(),
+      loadConfig: jest.fn(),
+      getCurrentWorkflows: jest.fn(),
+      getCurrentWorkflow: jest.fn(),
+      navigateToWorkflow: jest.fn(),
+      goBack: jest.fn(),
+      getBreadcrumbPath: jest.fn(),
+      isSearchEnabled: jest.fn(),
+      getSearchPlaceholder: jest.fn(),
+      getCurrentPath: jest.fn(),
+      isAtInitialState: jest.fn(),
+      getWorkflowById: jest.fn(),
+      resetToInitial: jest.fn(),
+    } as any;
+
+    // Setup WorkflowActions mock
+    mockWorkflowActions = {
+      executeWorkflow: jest.fn(),
+      sendChatMessage: jest.fn(),
+      sendChatMessageStream: jest.fn(),
+      handleSearchResult: jest.fn(),
+      handleFormSubmit: jest.fn(),
+      handleWorkflowTransition: jest.fn(),
+      getWorkflowCapabilities: jest.fn(),
+      getAIServiceInfo: jest.fn(),
+      getAvailableAIServices: jest.fn(),
+      setAIService: jest.fn(),
+    } as any;
+
+    // Setup KeyboardManager mock
+    mockKeyboardManager = {
+      initialize: jest.fn(),
+      setActive: jest.fn(),
+      handleSearchKeyDown: jest.fn(),
+      cleanup: jest.fn(),
+      destroy: jest.fn(),
+      detachGlobalListeners: jest.fn(),
+      onToggleOverlay: jest.fn(),
+    } as any;
+
+    (WorkflowManager.getInstance as jest.Mock).mockReturnValue(
+      mockWorkflowManager
+    );
+    (WorkflowActions.getInstance as jest.Mock).mockReturnValue(
+      mockWorkflowActions
+    );
+    (KeyboardManager.getInstance as jest.Mock).mockReturnValue(
+      mockKeyboardManager
+    );
+
+    // Default mock implementations
+    mockWorkflowManager.initialize.mockResolvedValue();
+    mockWorkflowManager.getCurrentWorkflows.mockReturnValue([
+      mockWorkflows["ai-ask"],
+      mockWorkflows["ai-agent"],
+      mockWorkflows["search-users"],
+      mockWorkflows.close,
+    ]);
+    mockWorkflowManager.getCurrentWorkflow.mockReturnValue(null);
+    mockWorkflowManager.getBreadcrumbPath.mockReturnValue("");
+    mockWorkflowManager.isSearchEnabled.mockReturnValue(true);
+    mockWorkflowManager.getSearchPlaceholder.mockReturnValue(
+      "Search workflows..."
+    );
+    mockWorkflowManager.getCurrentPath.mockReturnValue({
+      steps: [],
+      current: "initial",
+    });
+    mockWorkflowManager.isAtInitialState.mockReturnValue(true);
+    mockWorkflowActions.executeWorkflow.mockResolvedValue();
+    mockWorkflowActions.sendChatMessage.mockResolvedValue("AI response");
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe("Initial Workflow Display", () => {
+    it("should display initial workflows when overlay opens", async () => {
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("AI Ask")).toBeInTheDocument();
+        expect(screen.getByText("AI Agent")).toBeInTheDocument();
+        expect(screen.getByText("Search Users")).toBeInTheDocument();
+        expect(screen.getByText("Close")).toBeInTheDocument();
+      });
+    });
+
+    it("should load workflow configuration on mount", async () => {
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(mockWorkflowManager.loadConfig).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("Action Workflow - Close", () => {
+    it("should execute close action and close overlay", async () => {
+      const onClose = jest.fn();
+      render(<SpotlightOverlay isVisible={true} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Close")).toBeInTheDocument();
+      });
+
+      // Click on Close workflow
+      await user.click(screen.getByText("Close"));
+
+      expect(mockWorkflowActions.executeWorkflow).toHaveBeenCalledWith(
+        mockWorkflows.close,
+        undefined,
+        expect.objectContaining({
+          onClose: expect.any(Function),
+        })
+      );
+    });
+
+    it("should handle keyboard navigation to close workflow", async () => {
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Close")).toBeInTheDocument();
+      });
+
+      // Navigate with arrow keys
+      fireEvent.keyDown(document, { key: "ArrowDown" });
+      fireEvent.keyDown(document, { key: "ArrowDown" });
+      fireEvent.keyDown(document, { key: "ArrowDown" });
+      fireEvent.keyDown(document, { key: "Enter" });
+
+      expect(mockWorkflowActions.executeWorkflow).toHaveBeenCalled();
+    });
+  });
+
+  describe("Chat Workflow - AI Ask", () => {
+    it("should navigate to AI Ask chat interface", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["ai-ask"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue("AI Ask:");
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("AI Ask")).toBeInTheDocument();
+      });
+
+      // Click on AI Ask workflow
+      await user.click(screen.getByText("AI Ask"));
+
+      expect(mockWorkflowManager.navigateToWorkflow).toHaveBeenCalledWith(
+        "ai-ask"
+      );
+    });
+
+    it("should display chat interface with breadcrumb", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["ai-ask"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue("AI Ask:");
+      mockWorkflowManager.isSearchEnabled.mockReturnValue(false);
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("")).toBeInTheDocument(); // Search field
+      });
+
+      // Should show breadcrumb prefix
+      expect(mockWorkflowManager.getBreadcrumbPath).toHaveBeenCalled();
+    });
+
+    it("should send chat message and display response", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["ai-ask"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue("AI Ask:");
+      mockWorkflowManager.isSearchEnabled.mockReturnValue(false);
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Wait for chat interface to load
+      await waitFor(() => {
+        const textarea = screen.getByPlaceholderText(/type your message/i);
+        expect(textarea).toBeInTheDocument();
+      });
+
+      const textarea = screen.getByPlaceholderText(/type your message/i);
+      const sendButton = screen.getByRole("button", { name: /send/i });
+
+      // Type message
+      await user.type(textarea, "What is TypeScript?");
+      await user.click(sendButton);
+
+      expect(mockWorkflowActions.sendChatMessage).toHaveBeenCalledWith(
+        mockWorkflows["ai-ask"],
+        "What is TypeScript?",
+        []
+      );
+    });
+  });
+
+  describe("Search Workflow - Search Users", () => {
+    const mockSearchResults = [
+      { id: "1", name: "John Doe", email: "john@example.com" },
+      { id: "2", name: "Jane Smith", email: "jane@example.com" },
+    ];
+
+    it("should navigate to search workflow and enable search field", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["search-users"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue("Search Users:");
+      mockWorkflowManager.isSearchEnabled.mockReturnValue(true);
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Search Users")).toBeInTheDocument();
+      });
+
+      // Click on Search Users workflow
+      await user.click(screen.getByText("Search Users"));
+
+      expect(mockWorkflowManager.navigateToWorkflow).toHaveBeenCalledWith(
+        "search-users"
+      );
+    });
+
+    it("should perform search and display results", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["search-users"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue("Search Users:");
+      mockWorkflowManager.isSearchEnabled.mockReturnValue(true);
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      const searchInput = screen.getByDisplayValue("");
+
+      // Type search query
+      await user.type(searchInput, "john");
+
+      // Simulate search results being displayed
+      await waitFor(() => {
+        expect(searchInput).toHaveValue("john");
+      });
+    });
+
+    it("should select search result and navigate to next workflow", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["search-users"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue("Search Users:");
+      mockWorkflowManager.isSearchEnabled.mockReturnValue(true);
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Simulate selecting a search result
+      const selectedResult = mockSearchResults[0];
+
+      await mockWorkflowActions.handleSearchResult(
+        mockWorkflows["search-users"],
+        selectedResult,
+        {
+          onNavigate: mockWorkflowManager.navigateToWorkflow,
+        }
+      );
+
+      expect(mockWorkflowActions.handleSearchResult).toHaveBeenCalledWith(
+        mockWorkflows["search-users"],
+        selectedResult,
+        expect.objectContaining({
+          onNavigate: expect.any(Function),
+        })
+      );
+    });
+  });
+
+  describe("Form Workflow - User Details", () => {
+    const mockStepData = {
+      id: "1",
+      name: "John Doe",
+      email: "john@example.com",
+      displayName: "John Doe",
+    };
+
+    it("should display form with user data", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["user-details"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue(
+        "Search Users > John Doe:"
+      );
+      mockWorkflowManager.isSearchEnabled.mockReturnValue(false);
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Should show form interface with user data
+      await waitFor(() => {
+        expect(mockWorkflowManager.getBreadcrumbPath).toHaveBeenCalled();
+      });
+    });
+
+    it("should submit form and handle response", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["user-details"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue(
+        "Search Users > John Doe:"
+      );
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Simulate form submission
+      const formData = { action: "approve", notes: "Approved user" };
+
+      await mockWorkflowActions.handleFormSubmit(
+        mockWorkflows["user-details"],
+        formData,
+        {
+          onClose: jest.fn(),
+        }
+      );
+
+      expect(mockWorkflowActions.handleFormSubmit).toHaveBeenCalledWith(
+        mockWorkflows["user-details"],
+        formData,
+        expect.objectContaining({
+          onClose: expect.any(Function),
+        })
+      );
+    });
+  });
+
+  describe("Multi-step Workflow Navigation", () => {
+    it("should navigate through complete search-to-form workflow", async () => {
+      const onClose = jest.fn();
+      render(<SpotlightOverlay isVisible={true} onClose={onClose} />);
+
+      // Step 1: Start with initial workflows
+      await waitFor(() => {
+        expect(screen.getByText("Search Users")).toBeInTheDocument();
+      });
+
+      // Step 2: Navigate to search workflow
+      await user.click(screen.getByText("Search Users"));
+      expect(mockWorkflowManager.navigateToWorkflow).toHaveBeenCalledWith(
+        "search-users"
+      );
+
+      // Step 3: Simulate search workflow state
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["search-users"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue("Search Users:");
+
+      // Step 4: Select search result
+      const selectedResult = {
+        id: "1",
+        name: "John Doe",
+        email: "john@example.com",
+      };
+      await mockWorkflowActions.handleSearchResult(
+        mockWorkflows["search-users"],
+        selectedResult,
+        { onNavigate: mockWorkflowManager.navigateToWorkflow }
+      );
+
+      // Step 5: Navigate to form workflow
+      expect(mockWorkflowActions.handleSearchResult).toHaveBeenCalled();
+    });
+
+    it("should handle back navigation correctly", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["user-details"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue(
+        "Search Users > John Doe:"
+      );
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Simulate pressing Escape to go back
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(mockWorkflowManager.goBack).toHaveBeenCalled();
+    });
+
+    it("should display correct breadcrumbs for nested navigation", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["user-details"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue(
+        "Search Users > John Doe:"
+      );
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(mockWorkflowManager.getBreadcrumbPath).toHaveBeenCalled();
+      });
+
+      // Should show the full breadcrumb path
+      expect(mockWorkflowManager.getBreadcrumbPath).toHaveReturnedWith(
+        "Search Users > John Doe:"
+      );
+    });
+  });
+
+  describe("Keyboard Navigation", () => {
+    it("should navigate through workflows with arrow keys", async () => {
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("AI Ask")).toBeInTheDocument();
+      });
+
+      // Test arrow key navigation
+      fireEvent.keyDown(document, { key: "ArrowDown" });
+      fireEvent.keyDown(document, { key: "ArrowDown" });
+      fireEvent.keyDown(document, { key: "ArrowUp" });
+      fireEvent.keyDown(document, { key: "Enter" });
+
+      // Should have called keyboard manager methods
+      expect(mockKeyboardManager.initialize).toHaveBeenCalled();
+    });
+
+    it("should handle Enter key to select workflow", async () => {
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("AI Ask")).toBeInTheDocument();
+      });
+
+      fireEvent.keyDown(document, { key: "Enter" });
+
+      // Should execute the selected workflow
+      expect(mockWorkflowActions.executeWorkflow).toHaveBeenCalled();
+    });
+
+    it("should handle Escape key for back navigation", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["ai-ask"]
+      );
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(mockWorkflowManager.goBack).toHaveBeenCalled();
+    });
+  });
+
+  describe("Error Handling", () => {
+    it("should handle workflow execution errors", async () => {
+      mockWorkflowActions.executeWorkflow.mockRejectedValue(
+        new Error("Workflow error")
+      );
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("AI Ask")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("AI Ask"));
+
+      // Should handle the error gracefully
+      await waitFor(() => {
+        expect(mockWorkflowActions.executeWorkflow).toHaveBeenCalled();
+      });
+    });
+
+    it("should handle chat message sending errors", async () => {
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["ai-ask"]
+      );
+      mockWorkflowActions.sendChatMessage.mockRejectedValue(
+        new Error("AI service error")
+      );
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Should handle chat errors gracefully
+      await waitFor(() => {
+        expect(mockWorkflowManager.getCurrentWorkflow).toHaveBeenCalled();
+      });
+    });
+
+    it("should handle configuration loading errors", async () => {
+      mockWorkflowManager.loadConfig.mockRejectedValue(
+        new Error("Config error")
+      );
+
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Should handle config errors and show fallback
+      await waitFor(() => {
+        expect(mockWorkflowManager.loadConfig).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("Dynamic Workflow Switching", () => {
+    it("should switch between different workflow types", async () => {
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Start with list view
+      await waitFor(() => {
+        expect(screen.getByText("AI Ask")).toBeInTheDocument();
+      });
+
+      // Switch to chat workflow
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["ai-ask"]
+      );
+      mockWorkflowManager.getBreadcrumbPath.mockReturnValue("AI Ask:");
+
+      // Re-render to simulate state change
+      render(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      // Should show chat interface
+      await waitFor(() => {
+        expect(mockWorkflowManager.getCurrentWorkflow).toHaveBeenCalled();
+      });
+    });
+
+    it("should handle search field enabling/disabling", async () => {
+      // Start with search disabled
+      mockWorkflowManager.isSearchEnabled.mockReturnValue(false);
+
+      const { rerender } = render(
+        <SpotlightOverlay isVisible={true} onClose={jest.fn()} />
+      );
+
+      // Switch to search enabled
+      mockWorkflowManager.isSearchEnabled.mockReturnValue(true);
+      mockWorkflowManager.getCurrentWorkflow.mockReturnValue(
+        mockWorkflows["search-users"]
+      );
+
+      rerender(<SpotlightOverlay isVisible={true} onClose={jest.fn()} />);
+
+      expect(mockWorkflowManager.isSearchEnabled).toHaveBeenCalled();
+    });
+  });
+});

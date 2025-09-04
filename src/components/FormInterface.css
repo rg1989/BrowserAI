@@ -1,0 +1,168 @@
+.form-interface {
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.form-content {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.form-header {
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.form-title {
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.form-fields {
+  margin-bottom: 24px;
+}
+
+.form-field {
+  margin-bottom: 16px;
+}
+
+.form-field:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.form-value {
+  color: white;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+  padding: 8px 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.form-button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  outline: none;
+}
+
+.form-button:focus {
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.5);
+}
+
+.form-button-primary {
+  background: rgba(0, 122, 255, 0.8);
+  color: white;
+}
+
+.form-button-primary:hover {
+  background: rgba(0, 122, 255, 0.9);
+}
+
+.form-button-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.form-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Scrollbar styling */
+.form-interface::-webkit-scrollbar {
+  width: 6px;
+}
+
+.form-interface::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.form-interface::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.form-interface::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Light mode styles */
+@media (prefers-color-scheme: light) {
+  .form-content {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .form-header {
+    border-bottom-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .form-title {
+    color: #000;
+  }
+
+  .form-label {
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .form-value {
+    color: #000;
+  }
+
+  .form-button-primary {
+    background: rgba(0, 122, 255, 0.9);
+  }
+
+  .form-button-primary:hover {
+    background: rgba(0, 122, 255, 1);
+  }
+
+  .form-button-secondary {
+    background: rgba(0, 0, 0, 0.05);
+    color: #000;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .form-button-secondary:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .form-interface::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .form-interface::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .form-interface::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
+  }
+}

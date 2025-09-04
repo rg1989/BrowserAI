@@ -1,0 +1,161 @@
+.prompt-input {
+  width: 100%;
+}
+
+.prompt-input-container {
+  display: flex;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px;
+  transition: all 0.2s ease;
+}
+
+.prompt-input-container:focus-within {
+  border-color: rgba(0, 122, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+.prompt-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: white;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  min-height: 20px;
+  max-height: 120px;
+  padding: 6px 8px;
+  overflow-y: auto;
+}
+
+.prompt-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.prompt-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.prompt-send-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.prompt-send-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.prompt-send-button-active {
+  background: rgba(0, 122, 255, 0.8);
+  color: white;
+}
+
+.prompt-send-button-active:hover {
+  background: rgba(0, 122, 255, 0.9);
+}
+
+.prompt-send-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.prompt-send-button:disabled:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.prompt-hint {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* Scrollbar styling for textarea */
+.prompt-textarea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.prompt-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prompt-textarea::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+.prompt-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Light mode styles */
+@media (prefers-color-scheme: light) {
+  .prompt-input-container {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .prompt-input-container:focus-within {
+    border-color: rgba(0, 122, 255, 0.6);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+  }
+
+  .prompt-textarea {
+    color: #000;
+  }
+
+  .prompt-textarea::placeholder {
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .prompt-send-button {
+    background: rgba(0, 0, 0, 0.05);
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .prompt-send-button:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .prompt-send-button-active {
+    background: rgba(0, 122, 255, 0.9);
+    color: white;
+  }
+
+  .prompt-send-button-active:hover {
+    background: rgba(0, 122, 255, 1);
+  }
+
+  .prompt-send-button:disabled:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .prompt-hint {
+    color: rgba(0, 0, 0, 0.4);
+  }
+
+  .prompt-textarea::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .prompt-textarea::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
+  }
+}

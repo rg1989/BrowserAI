@@ -1,0 +1,118 @@
+.spotlight-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  z-index: 999999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  animation: spotlight-fade-in 0.15s ease-out;
+}
+
+@keyframes spotlight-fade-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+.spotlight-container {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 20px;
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 8px 32px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(40px);
+  overflow: hidden;
+  animation: spotlight-slide-in 0.2s ease-out;
+}
+
+@keyframes spotlight-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.spotlight-content {
+  max-height: 400px;
+  overflow: hidden;
+}
+
+/* Light mode styles */
+@media (prefers-color-scheme: light) {
+  .spotlight-overlay {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .spotlight-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 8px 32px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .spotlight-overlay {
+    padding-top: 10vh;
+  }
+
+  .spotlight-container {
+    margin: 0 16px;
+    max-width: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .spotlight-overlay {
+    padding-top: 8vh;
+  }
+
+  .spotlight-container {
+    margin: 0 12px;
+    border-radius: 12px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .spotlight-container {
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  @media (prefers-color-scheme: light) {
+    .spotlight-container {
+      border-color: rgba(0, 0, 0, 0.3);
+    }
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-overlay {
+    animation: none;
+  }
+
+  .spotlight-container {
+    animation: none;
+  }
+}

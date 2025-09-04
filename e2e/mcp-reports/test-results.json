@@ -1,0 +1,310 @@
+{
+  "config": {
+    "configFile": "/Users/romangrinevich/projects/ai-assistant-extension/playwright-mcp.config.ts",
+    "rootDir": "/Users/romangrinevich/projects/ai-assistant-extension/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        null
+      ],
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "e2e/mcp-reports/test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/Users/romangrinevich/projects/ai-assistant-extension/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mcp-setup",
+        "name": "mcp-setup",
+        "testDir": "/Users/romangrinevich/projects/ai-assistant-extension/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/mcp-setup-test.spec.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/romangrinevich/projects/ai-assistant-extension/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mcp-extension",
+        "name": "mcp-extension",
+        "testDir": "/Users/romangrinevich/projects/ai-assistant-extension/e2e",
+        "testIgnore": [
+          "**/mcp-setup-test.spec.ts"
+        ],
+        "testMatch": [
+          "**/mcp-*.spec.ts"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.55.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "mcp-setup-test.spec.ts",
+      "file": "mcp-setup-test.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "MCP Setup Validation",
+          "file": "mcp-setup-test.spec.ts",
+          "line": 16,
+          "column": 6,
+          "specs": [
+            {
+              "title": "MCP browser setup works correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mcp-setup",
+                  "projectName": "mcp-setup",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1572,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "MCP Page State: {\n  \"url\": \"https://example.com/\",\n  \"title\": \"Example Domain\",\n  \"timestamp\": \"2025-09-04T15:52:54.469Z\",\n  \"viewport\": {\n    \"width\": 1280,\n    \"height\": 720\n  }\n}\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-04T15:52:48.844Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "0e3f339b9f277e2d6bf3-264ca6a4fa5325926eff",
+              "file": "mcp-setup-test.spec.ts",
+              "line": 41,
+              "column": 7
+            },
+            {
+              "title": "MCP keyboard interaction works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mcp-setup",
+                  "projectName": "mcp-setup",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1286,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-04T15:52:54.478Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "0e3f339b9f277e2d6bf3-aed0410f6e4126147408",
+              "file": "mcp-setup-test.spec.ts",
+              "line": 77,
+              "column": 7
+            },
+            {
+              "title": "MCP performance measurement works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mcp-setup",
+                  "projectName": "mcp-setup",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 559,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "MCP Performance Metrics: { loadTime: \u001b[33m553\u001b[39m, timestamp: \u001b[32m'2025-09-04T15:52:56.327Z'\u001b[39m }\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-04T15:52:55.770Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "0e3f339b9f277e2d6bf3-7fa85d645a2055b8c6df",
+              "file": "mcp-setup-test.spec.ts",
+              "line": 94,
+              "column": 7
+            },
+            {
+              "title": "MCP cross-page navigation works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mcp-setup",
+                  "projectName": "mcp-setup",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5138,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Testing MCP navigation to: https://example.com\n"
+                        },
+                        {
+                          "text": "MCP State for https://example.com: { url: \u001b[32m'https://example.com/'\u001b[39m, title: \u001b[32m'Example Domain'\u001b[39m }\n"
+                        },
+                        {
+                          "text": "Testing MCP navigation to: https://httpbin.org/html\n"
+                        },
+                        {
+                          "text": "MCP State for https://httpbin.org/html: { url: \u001b[32m'https://httpbin.org/html'\u001b[39m, title: \u001b[32m''\u001b[39m }\n"
+                        },
+                        {
+                          "text": "Testing MCP navigation to: data:text/html,<html><body><h1>MCP Test Page</h1></body></html>\n"
+                        },
+                        {
+                          "text": "MCP State for data:text/html,<html><body><h1>MCP Test Page</h1></body></html>: {\n  url: \u001b[32m'data:text/html,<html><body><h1>MCP Test Page</h1></body></html>'\u001b[39m,\n  title: \u001b[32m''\u001b[39m\n}\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-04T15:52:56.337Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "0e3f339b9f277e2d6bf3-38414ad78dac5950ec48",
+              "file": "mcp-setup-test.spec.ts",
+              "line": 111,
+              "column": 7
+            },
+            {
+              "title": "MCP accessibility validation works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mcp-setup",
+                  "projectName": "mcp-setup",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 566,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "MCP Accessibility Report: {\n  \"focusableElements\": 1,\n  \"headings\": 1,\n  \"links\": 1,\n  \"images\": 0\n}\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-04T15:53:01.486Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "0e3f339b9f277e2d6bf3-70fe9ff05f3c64d6207e",
+              "file": "mcp-setup-test.spec.ts",
+              "line": 140,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2025-09-04T15:52:48.561Z",
+    "duration": 13757.426,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

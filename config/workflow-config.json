@@ -1,0 +1,42 @@
+{
+  "workflows": {
+    "ai-ask": {
+      "id": "ai-ask",
+      "name": "AI Ask",
+      "type": "chat",
+      "component": "ChatInterface",
+      "searchEnabled": false
+    },
+    "ai-agent": {
+      "id": "ai-agent",
+      "name": "AI Agent",
+      "type": "chat",
+      "component": "ChatInterface",
+      "searchEnabled": false
+    },
+    "search-users": {
+      "id": "search-users",
+      "name": "Search Users",
+      "type": "search",
+      "component": "SearchInterface",
+      "searchEnabled": true,
+      "searchPlaceholder": "Type to search users...",
+      "nextWorkflow": "user-details"
+    },
+    "user-details": {
+      "id": "user-details",
+      "name": "User Details",
+      "type": "form",
+      "component": "FormInterface",
+      "searchEnabled": false
+    },
+    "close": {
+      "id": "close",
+      "name": "Close",
+      "type": "action",
+      "component": "ActionComponent",
+      "action": "close"
+    }
+  },
+  "initialWorkflows": ["ai-ask", "ai-agent", "search-users", "close"]
+}

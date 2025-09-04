@@ -1,0 +1,162 @@
+/* Main stylesheet for Spotlight Browser Extension */
+
+/* Import theme system first */
+@import "./theme.css";
+
+/* Import global styles */
+@import "./global.css";
+
+/* Import animations */
+@import "./animations.css";
+
+/* Component styles are imported individually by components */
+
+/* Additional component-specific overrides can go here */
+
+/* Ensure proper font loading */
+@font-face {
+  font-family: "SF Pro Display";
+  src: local("SF Pro Display"), local("SFProDisplay-Regular");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: local("SF Pro Display Medium"), local("SFProDisplay-Medium");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: local("SF Pro Display Semibold"), local("SFProDisplay-Semibold");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Fallback font stack for better cross-platform compatibility */
+body,
+.spotlight-overlay,
+.spotlight-container {
+  font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Roboto", "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Ensure consistent rendering across browsers */
+.spotlight-overlay * {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Performance optimizations */
+.spotlight-overlay {
+  will-change: opacity, backdrop-filter;
+  contain: layout style paint;
+}
+
+.spotlight-container {
+  will-change: transform, opacity;
+  contain: layout style paint;
+}
+
+/* Ensure proper stacking context */
+.spotlight-overlay {
+  isolation: isolate;
+}
+
+/* Prevent text selection in UI elements */
+.workflow-item,
+.search-result-item,
+.form-button {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Allow text selection in content areas */
+.message-text,
+.form-value,
+.search-field-input,
+.prompt-textarea {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* Improve touch targets on mobile */
+@media (pointer: coarse) {
+  .workflow-item,
+  .search-result-item,
+  .form-button,
+  .prompt-send-button {
+    min-height: 44px;
+  }
+}
+
+/* Ensure proper contrast for Windows high contrast mode */
+@media (prefers-contrast: high) {
+  .spotlight-container {
+    border: 2px solid ButtonText;
+    background: ButtonFace;
+  }
+
+  .workflow-item-selected,
+  .search-result-selected {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .theme-button-primary {
+    background: ButtonText;
+    color: ButtonFace;
+  }
+}
+
+/* Print styles to hide overlay */
+@media print {
+  .spotlight-overlay {
+    display: none !important;
+  }
+}
+
+/* Ensure proper rendering in different zoom levels */
+@media (min-resolution: 2dppx) {
+  .spotlight-container {
+    border-width: 0.5px;
+  }
+}
+
+/* Optimize for different display densities */
+@media (-webkit-min-device-pixel-ratio: 2) {
+  .workflow-item-icon,
+  .search-result-item::before {
+    transform: translateZ(0);
+  }
+}
+
+/* Ensure accessibility in forced colors mode */
+@media (forced-colors: active) {
+  .spotlight-container {
+    border: 1px solid ButtonText;
+    background: ButtonFace;
+  }
+
+  .workflow-item:hover,
+  .search-result-item:hover {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .theme-button-primary {
+    background: ButtonText;
+    color: ButtonFace;
+    border: 1px solid ButtonText;
+  }
+}
