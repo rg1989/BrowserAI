@@ -49,7 +49,7 @@ describe("WorkflowActions", () => {
       capabilities: ["chat", "streaming"],
     });
     mockAIServiceManagerInstance.getAvailableServices.mockReturnValue(["mock", "openai"]);
-    mockAIServiceManagerInstance.setService.mockResolvedValue();
+    mockAIServiceManagerInstance.setService.mockResolvedValue(undefined);
 
     mockAIServiceManager = mockAIServiceManagerInstance;
     workflowActions = WorkflowActions.getInstance();
