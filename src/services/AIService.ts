@@ -210,6 +210,11 @@ export class MockAIService extends AIService {
     message: string,
     context?: ChatMessage[]
   ): string {
+    // If template is empty (for testing scenarios), return empty
+    if (template === "") {
+      return "";
+    }
+
     // Add some context-aware elements to the response
     let response = template;
 

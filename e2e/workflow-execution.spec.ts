@@ -39,7 +39,7 @@ test.describe("Workflow Execution E2E Tests", () => {
 
   test("AI Ask workflow complete interaction", async () => {
     // Activate overlay
-    await page.keyboard.press("Meta+KeyK");
+    await page.keyboard.press("Meta+Slash");
     await expect(
       page.locator('[data-testid="spotlight-overlay"]')
     ).toBeVisible();
@@ -83,7 +83,7 @@ test.describe("Workflow Execution E2E Tests", () => {
 
   test("AI Agent workflow complete interaction", async () => {
     // Activate overlay
-    await page.keyboard.press("Meta+KeyK");
+    await page.keyboard.press("Meta+Slash");
     await expect(
       page.locator('[data-testid="spotlight-overlay"]')
     ).toBeVisible();
@@ -118,7 +118,7 @@ test.describe("Workflow Execution E2E Tests", () => {
     // This test assumes a search workflow is configured
     // We'll test the general pattern even if specific workflow isn't available
 
-    await page.keyboard.press("Meta+KeyK");
+    await page.keyboard.press("Meta+Slash");
     await expect(
       page.locator('[data-testid="spotlight-overlay"]')
     ).toBeVisible();
@@ -147,7 +147,7 @@ test.describe("Workflow Execution E2E Tests", () => {
 
   test("Form workflow interaction", async () => {
     // Test form workflow if available
-    await page.keyboard.press("Meta+KeyK");
+    await page.keyboard.press("Meta+Slash");
     await expect(
       page.locator('[data-testid="spotlight-overlay"]')
     ).toBeVisible();
@@ -181,7 +181,7 @@ test.describe("Workflow Execution E2E Tests", () => {
 
   test("Loader workflow behavior", async () => {
     // Test loader workflow if available
-    await page.keyboard.press("Meta+KeyK");
+    await page.keyboard.press("Meta+Slash");
     await expect(
       page.locator('[data-testid="spotlight-overlay"]')
     ).toBeVisible();
@@ -212,7 +212,7 @@ test.describe("Workflow Execution E2E Tests", () => {
 
   test("Complex navigation sequence", async () => {
     // Test a complex navigation sequence
-    await page.keyboard.press("Meta+KeyK");
+    await page.keyboard.press("Meta+Slash");
     await expect(
       page.locator('[data-testid="spotlight-overlay"]')
     ).toBeVisible();
@@ -254,7 +254,7 @@ test.describe("Workflow Execution E2E Tests", () => {
 
   test("Rapid keyboard navigation", async () => {
     // Test rapid keyboard interactions
-    await page.keyboard.press("Meta+KeyK");
+    await page.keyboard.press("Meta+Slash");
     await expect(
       page.locator('[data-testid="spotlight-overlay"]')
     ).toBeVisible();
@@ -283,7 +283,7 @@ test.describe("Workflow Execution E2E Tests", () => {
 
   test("Mouse and keyboard interaction combination", async () => {
     // Test combining mouse clicks with keyboard navigation
-    await page.keyboard.press("Meta+KeyK");
+    await page.keyboard.press("Meta+Slash");
     await expect(
       page.locator('[data-testid="spotlight-overlay"]')
     ).toBeVisible();

@@ -11,15 +11,17 @@ jest.mock("../WorkflowManager", () => ({
 }));
 
 // Mock AIServiceManager
+const mockAIServiceManagerInstance = {
+  sendMessage: jest.fn(),
+  sendMessageStream: jest.fn(),
+  getServiceInfo: jest.fn(),
+  getAvailableServices: jest.fn(),
+  setService: jest.fn(),
+};
+
 jest.mock("../AIService", () => ({
   AIServiceManager: {
-    getInstance: jest.fn(() => ({
-      sendMessage: jest.fn(),
-      sendMessageStream: jest.fn(),
-      getServiceInfo: jest.fn(),
-      getAvailableServices: jest.fn(),
-      setService: jest.fn(),
-    })),
+    getInstance: jest.fn(() => mockAIServiceManagerInstance),
   },
 }));
 
@@ -29,10 +31,27 @@ describe("WorkflowActions", () => {
   let mockAIServiceManager: any;
 
   beforeEach(() => {
-    // Get the mocked AI service manager
-    const { AIServiceManager } = require("../AIService");
-    mockAIServiceManager = AIServiceManager.getInstance();
+    // Reset singleton instances
+    (WorkflowActions as any).instance = undefined;
 
+    // Setup AI service manager mocks
+    mockAIServiceManagerInstance.sendMessage.mockResolvedValue({
+      message: "AI response",
+      usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+    });
+    mockAIServiceManagerInstance.sendMessageStream.mockResolvedValue({
+      message: "AI streaming response",
+      usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+    });
+    mockAIServiceManagerInstance.getServiceInfo.mockReturnValue({
+      name: "Mock AI Service",
+      version: "1.0.0",
+      capabilities: ["chat", "streaming"],
+    });
+    mockAIServiceManagerInstance.getAvailableServices.mockReturnValue(["mock", "openai"]);
+    mockAIServiceManagerInstance.setService.mockResolvedValue();
+
+    mockAIServiceManager = mockAIServiceManagerInstance;
     workflowActions = WorkflowActions.getInstance();
     mockCallbacks = {
       onClose: jest.fn(),

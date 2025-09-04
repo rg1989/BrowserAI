@@ -15,6 +15,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     return timestamp.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
     });
   };
 
@@ -37,9 +38,8 @@ export const MessageList: React.FC<MessageListProps> = ({
       {messages.map((message) => (
         <div
           key={message.id}
-          className={`message ${
-            message.sender === "user" ? "message-user" : "message-ai"
-          }`}
+          className={`message ${message.sender === "user" ? "message-user" : "message-ai"
+            }`}
         >
           <div className="message-content">
             <div className="message-text">{message.content}</div>

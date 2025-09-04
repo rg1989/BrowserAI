@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, startTransition } from "react";
 import { SpotlightOverlayProps } from "../types/workflow";
 import { WorkflowManager } from "../services/WorkflowManager";
 import { KeyboardManager } from "../services/KeyboardManager";
@@ -23,12 +23,20 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
 
   // Update state when workflow changes
   const updateWorkflowState = useCallback(() => {
-    setCurrentWorkflows(workflowManager.getCurrentWorkflows());
-    setCurrentWorkflow(workflowManager.getCurrentWorkflow());
-    setBreadcrumbPath(workflowManager.getBreadcrumbPath());
-    setIsSearchEnabled(workflowManager.isSearchEnabled());
-    setSelectedIndex(0);
-    setSearchValue("");
+    // Batch all state updates together to avoid multiple re-renders
+    const workflows = workflowManager.getCurrentWorkflows();
+    const workflow = workflowManager.getCurrentWorkflow();
+    const breadcrumb = workflowManager.getBreadcrumbPath();
+    const searchEnabled = workflowManager.isSearchEnabled();
+
+    startTransition(() => {
+      setCurrentWorkflows(workflows);
+      setCurrentWorkflow(workflow);
+      setBreadcrumbPath(breadcrumb);
+      setIsSearchEnabled(searchEnabled);
+      setSelectedIndex(0);
+      setSearchValue("");
+    });
   }, [workflowManager]);
 
   // Initialize workflow manager
@@ -36,6 +44,17 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
     if (isVisible) {
       workflowManager.initialize().then(() => {
         updateWorkflowState();
+      }).catch((error) => {
+        console.error("Failed to initialize workflow manager:", error);
+        // Set fallback state
+        startTransition(() => {
+          setCurrentWorkflows([]);
+          setCurrentWorkflow(null);
+          setBreadcrumbPath("");
+          setIsSearchEnabled(true);
+          setSelectedIndex(0);
+          setSearchValue("");
+        });
       });
     }
   }, [isVisible, workflowManager, updateWorkflowState]);
@@ -86,15 +105,9 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
   ]);
 
   const handleBack = useCallback(() => {
-    console.log("SpotlightOverlay.handleBack() called");
-    const canGoBack = workflowManager.goBack();
-    console.log("WorkflowManager.goBack() returned:", canGoBack);
-
-    if (canGoBack) {
-      console.log("Updating workflow state after going back");
+    if (workflowManager.goBack()) {
       updateWorkflowState();
     } else {
-      console.log("Cannot go back, closing overlay");
       onClose();
     }
   }, [workflowManager, updateWorkflowState, onClose]);

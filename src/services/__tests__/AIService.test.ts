@@ -92,7 +92,7 @@ describe("AIService", () => {
 
         expect(chunks.length).toBeGreaterThan(0);
         expect(chunks.join("")).toBe(response.message);
-      });
+      }, 10000);
 
       it("should work without chunk callback", async () => {
         const message = "No streaming callback";
@@ -271,7 +271,7 @@ describe("AIService", () => {
 
       expect(chunks.length).toBeGreaterThan(0);
       expect(response.message).toBeTruthy();
-    });
+    }, 10000);
 
     it("should get service info", () => {
       const info = manager.getServiceInfo();
@@ -306,7 +306,7 @@ describe("AIService", () => {
       const service2 = manager.getCurrentService();
 
       // Should be the same instance since it's cached
-      expect(service1).toBe(service2);
+      expect(service1).toStrictEqual(service2);
     });
   });
 

@@ -12,7 +12,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
   test.describe("Extension Activation", () => {
     test("should activate overlay with CMD+K", async ({ page }) => {
       // Press CMD+K to activate the spotlight overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
 
       // Wait for overlay to appear
       await page.waitForSelector(".spotlight-overlay", { timeout: 5000 });
@@ -30,7 +30,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
       page,
     }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Verify initial workflows are displayed
@@ -45,7 +45,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should close overlay with Escape key", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Press Escape to close
@@ -61,7 +61,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
       page,
     }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Verify first item is selected
@@ -102,7 +102,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
       page,
     }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Press arrow up from first item (should wrap to last)
@@ -117,7 +117,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should execute workflow with Enter key", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate to Close workflow
@@ -141,7 +141,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
   test.describe("Mouse Interactions", () => {
     test("should select workflow on hover", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Hover over second workflow
@@ -157,7 +157,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should execute workflow on click", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Click on Close workflow
@@ -169,7 +169,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should close overlay when clicking outside", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Click outside the overlay container
@@ -183,7 +183,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
   test.describe("Chat Workflow Navigation", () => {
     test("should navigate to chat interface", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Click on AI Ask workflow
@@ -202,7 +202,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should handle chat message input", async ({ page }) => {
       // Navigate to chat interface
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
       await page.locator("text=AI Ask").click();
       await page.waitForSelector(".chat-interface");
@@ -227,7 +227,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should handle back navigation from chat", async ({ page }) => {
       // Navigate to chat interface
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
       await page.locator("text=AI Ask").click();
       await page.waitForSelector(".chat-interface");
@@ -247,7 +247,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
   test.describe("Search Workflow Navigation", () => {
     test("should navigate to search interface", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate to search workflow (if available)
@@ -269,7 +269,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should handle search input", async ({ page }) => {
       // Navigate to search interface (if available)
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       const searchWorkflow = page.locator("text=Search");
@@ -291,7 +291,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
     test("should navigate to form interface", async ({ page }) => {
       // This test would require a form workflow to be configured
       // For now, we'll test the general form interface behavior
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Look for any form-type workflow
@@ -313,7 +313,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
   test.describe("Multi-step Workflow Navigation", () => {
     test("should handle complex workflow sequences", async ({ page }) => {
       // Test a complete workflow sequence
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Step 1: Navigate to a workflow
@@ -333,7 +333,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should maintain state during navigation", async ({ page }) => {
       // Test that workflow state is maintained properly
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate to chat
@@ -362,11 +362,11 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
   test.describe("Error Handling and Edge Cases", () => {
     test("should handle rapid key presses", async ({ page }) => {
       // Test rapid activation/deactivation
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.keyboard.press("Escape");
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.keyboard.press("Escape");
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
 
       // Should still work correctly
       await page.waitForSelector(".spotlight-overlay");
@@ -375,7 +375,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should handle window resize", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Resize window
@@ -395,7 +395,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should handle page navigation", async ({ page }) => {
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate to different page
@@ -405,7 +405,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
       await page.waitForLoadState("networkidle");
 
       // Try to activate overlay again
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
 
       // Should still work on new page
       await page.waitForSelector(".spotlight-overlay", { timeout: 5000 });
@@ -425,7 +425,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
       await expect(page.locator("#test-input")).toBeFocused();
 
       // Activate overlay
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Verify overlay search input is now focused
@@ -441,7 +441,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
   test.describe("Accessibility", () => {
     test("should have proper ARIA attributes", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Check for proper ARIA attributes
@@ -457,7 +457,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
 
     test("should support keyboard-only navigation", async ({ page }) => {
       // Test complete keyboard-only workflow
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Navigate using only keyboard
@@ -470,7 +470,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
     });
 
     test("should have proper focus indicators", async ({ page }) => {
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       // Check that focused elements have visible focus indicators
@@ -486,7 +486,7 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
     test("should activate quickly", async ({ page }) => {
       const startTime = Date.now();
 
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
 
       const endTime = Date.now();
@@ -499,14 +499,14 @@ test.describe("Spotlight Browser Extension E2E Tests", () => {
     test("should handle multiple rapid activations", async ({ page }) => {
       // Test performance under rapid activation/deactivation
       for (let i = 0; i < 5; i++) {
-        await page.keyboard.press("Meta+KeyK");
+        await page.keyboard.press("Meta+Slash");
         await page.waitForSelector(".spotlight-overlay");
         await page.keyboard.press("Escape");
         await page.waitForSelector(".spotlight-overlay", { state: "hidden" });
       }
 
       // Final activation should still work
-      await page.keyboard.press("Meta+KeyK");
+      await page.keyboard.press("Meta+Slash");
       await page.waitForSelector(".spotlight-overlay");
       await expect(page.locator(".spotlight-overlay")).toBeVisible();
     });

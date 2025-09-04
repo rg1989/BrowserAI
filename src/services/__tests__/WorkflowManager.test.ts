@@ -71,6 +71,22 @@ describe("WorkflowManager", () => {
 
   it("should handle multi-step navigation", async () => {
     const config = createDefaultConfig();
+    // Add test workflows for multi-step navigation
+    config.workflows["search-users"] = {
+      id: "search-users",
+      name: "Search Users",
+      type: "search",
+      component: "SearchInterface",
+      searchEnabled: true,
+    };
+    config.workflows["user-details"] = {
+      id: "user-details",
+      name: "User Details",
+      type: "form",
+      component: "FormInterface",
+      searchEnabled: false,
+    };
+
     mockConfigLoader.loadConfig.mockResolvedValue(config);
     await workflowManager.initialize();
 
