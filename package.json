@@ -17,8 +17,16 @@
     "test:e2e:mcp:ui": "playwright test --project=chromium-mcp --ui e2e/mcp-*.spec.ts",
     "test:e2e:mcp:headed": "playwright test --project=chromium-mcp --headed e2e/mcp-*.spec.ts",
     "test:mcp": "ts-node e2e/run-mcp-tests.ts",
+    "test:e2e:monitoring": "ts-node e2e/run-monitoring-tests.ts",
+    "test:e2e:monitoring:pipeline": "playwright test e2e/page-context-monitoring.spec.ts",
+    "test:e2e:monitoring:network": "playwright test e2e/network-monitoring.spec.ts",
+    "test:e2e:monitoring:performance": "playwright test e2e/performance-validation.spec.ts",
+    "test:e2e:monitoring:privacy": "playwright test e2e/privacy-validation.spec.ts",
+    "test:e2e:monitoring:plugin": "playwright test e2e/plugin-integration.spec.ts",
+    "test:e2e:monitoring:headed": "playwright test --headed e2e/*monitoring*.spec.ts e2e/performance-validation.spec.ts e2e/privacy-validation.spec.ts e2e/plugin-integration.spec.ts",
     "test:all": "npm run test && npm run build:test && npm run test:e2e",
-    "test:all:mcp": "npm run test && npm run build:test && npm run test:e2e:mcp"
+    "test:all:mcp": "npm run test && npm run build:test && npm run test:e2e:mcp",
+    "test:all:monitoring": "npm run test && npm run build:test && npm run test:e2e:monitoring"
   },
   "dependencies": {
     "plasmo": "0.90.5",
