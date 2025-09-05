@@ -10,6 +10,11 @@ import {
   AIInsight,
   WorkflowRecommendation,
 } from "../services/SuggestionEngine";
+import {
+  ContextualAIService,
+  ContextualAIServiceResponse,
+  ContextSummary,
+} from "../services/ContextualAIService";
 import "./ChatInterface.css";
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -30,8 +35,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   >([]);
   const [showContextInfo, setShowContextInfo] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
+  const [contextEnabled, setContextEnabled] = useState(true);
+  const [contextSummary, setContextSummary] = useState<ContextSummary | null>(
+    null
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const contextProvider = ContextProvider.getInstance();
+  const contextualAIService = useRef(new ContextualAIService()).current;
+  const conversationId = useRef(`chat_${Date.now()}`).current;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,7 +58,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     loadPromptSuggestions();
     loadProactiveInsights();
     loadWorkflowRecommendations();
+    loadContextSummary();
   }, []);
+
+  // Update context summary when context is enabled/disabled
+  useEffect(() => {
+    if (contextEnabled) {
+      loadContextSummary();
+    }
+  }, [contextEnabled]);
 
   const loadContextSuggestions = async () => {
     if (contextProvider.isReady()) {
@@ -96,6 +115,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
+  const loadContextSummary = async () => {
+    try {
+      const summary = await contextualAIService.getContextSummary();
+      setContextSummary(summary);
+    } catch (error) {
+      console.error("Failed to load context summary:", error);
+    }
+  };
+
   const handleSendMessage = async (message: string) => {
     if (!message.trim() || isLoading) return;
 
@@ -111,58 +139,61 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setIsLoading(true);
 
     try {
-      // Enhance message with context if available
-      let enhancedMessage = message.trim();
-      let contextInfo = "";
-
-      if (contextProvider.isReady()) {
-        try {
-          const enhanced = await contextProvider.enhancePrompt(
-            message.trim(),
-            messages
-          );
-          if (enhanced.enhancementApplied) {
-            enhancedMessage = enhanced.enhancedMessage;
-            contextInfo = enhanced.contextSummary;
+      // Use ContextualAIService to send message with context
+      const response: ContextualAIServiceResponse =
+        await contextualAIService.sendContextualMessage(
+          message.trim(),
+          conversationId,
+          {
+            useContext: contextEnabled,
+            maxContextTokens: 1000,
+            includeNetworkData: true,
+            includeDOMChanges: true,
+            includeInteractions: true,
           }
-        } catch (error) {
-          console.error("Failed to enhance prompt with context:", error);
-        }
+        );
+
+      // Create AI response message
+      let responseContent = response.message;
+
+      // Add context indicator if context was used
+      if (response.contextUsed && contextEnabled) {
+        responseContent += `\n\n*Context: ${response.contextTokens} tokens used*`;
       }
 
-      // Call the parent's onSendMessage handler with enhanced message
-      await onSendMessage(enhancedMessage);
+      const aiResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: responseContent,
+        sender: "ai",
+        timestamp: new Date(),
+      };
 
-      // Simulate AI response (in real implementation, this would come from the parent)
+      setMessages((prev) => [...prev, aiResponse]);
+      setIsLoading(false);
+
+      // Call the parent's onSendMessage handler for any additional processing
+      await onSendMessage(message.trim());
+
+      // Refresh suggestions and context summary after conversation
       setTimeout(() => {
-        let responseContent = `This is a mock response from ${workflowType}. In a real implementation, this would be connected to an AI service.`;
-
-        // Add context information to response if available
-        if (contextInfo) {
-          responseContent += `\n\n*Context used: ${
-            contextInfo.split("\n")[0]
-          }*`;
-        }
-
-        const aiResponse: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          content: responseContent,
-          sender: "ai",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, aiResponse]);
-        setIsLoading(false);
-
-        // Refresh suggestions after conversation
-        setTimeout(() => {
-          loadContextSuggestions();
-          loadPromptSuggestions();
-          loadProactiveInsights();
-          loadWorkflowRecommendations();
-        }, 100);
-      }, 1000);
+        loadContextSuggestions();
+        loadPromptSuggestions();
+        loadProactiveInsights();
+        loadWorkflowRecommendations();
+        loadContextSummary();
+      }, 100);
     } catch (error) {
-      console.error("Failed to send message:", error);
+      console.error("Failed to send contextual message:", error);
+
+      // Fallback to basic response on error
+      const errorResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content:
+          "I'm sorry, I encountered an error processing your message. Please try again.",
+        sender: "ai",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorResponse]);
       setIsLoading(false);
     }
   };
@@ -260,6 +291,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           {contextProvider.isReady() && (
             <div className="context-controls">
               <button
+                className={`context-toggle ${
+                  contextEnabled ? "enabled" : "disabled"
+                }`}
+                onClick={() => setContextEnabled(!contextEnabled)}
+                title={`Context: ${contextEnabled ? "ON" : "OFF"}`}
+              >
+                {contextEnabled ? "🔗" : "🔗"} Context:{" "}
+                {contextEnabled ? "ON" : "OFF"}
+              </button>
+              <button
                 className="context-info-toggle"
                 onClick={() => setShowContextInfo(!showContextInfo)}
                 title="Toggle context information"
@@ -280,8 +321,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           {workflowType === "ai-ask"
             ? "Ask questions and get instant answers"
             : "Get help with tasks and workflows"}
-          {contextProvider.isReady() && (
-            <span className="context-indicator"> • Context-aware</span>
+          {contextProvider.isReady() &&
+            contextEnabled &&
+            contextSummary?.hasContext && (
+              <span className="context-indicator">
+                {" "}
+                • Context: {contextSummary.contextTypes.join(", ")}
+              </span>
+            )}
+          {contextProvider.isReady() && !contextEnabled && (
+            <span className="context-disabled"> • Context disabled</span>
           )}
         </div>
       </div>

@@ -1,7 +1,13 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatInterface } from "../ChatInterface";
+import { ContextualAIService } from "../../services/ContextualAIService";
+import { ContextProvider } from "../../services/ContextProvider";
+
+// Mock the ContextualAIService
+jest.mock("../../services/ContextualAIService");
+jest.mock("../../services/ContextProvider");
 
 describe("ChatInterface", () => {
   const defaultProps = {
@@ -10,8 +16,52 @@ describe("ChatInterface", () => {
     messages: [],
   };
 
+  const mockContextualAIService = {
+    sendContextualMessage: jest.fn(),
+    getContextSummary: jest.fn(),
+    generateContextualSuggestions: jest.fn(),
+  };
+
+  const mockContextProvider = {
+    isReady: jest.fn(),
+    generateSuggestions: jest.fn(),
+    getPromptSuggestions: jest.fn(),
+    generateProactiveInsights: jest.fn(),
+    generateWorkflowRecommendations: jest.fn(),
+    getInstance: jest.fn(),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Setup default mocks
+    (ContextualAIService as jest.Mock).mockImplementation(
+      () => mockContextualAIService
+    );
+    (ContextProvider.getInstance as jest.Mock).mockReturnValue(
+      mockContextProvider
+    );
+
+    mockContextProvider.isReady.mockReturnValue(true);
+    mockContextProvider.generateSuggestions.mockResolvedValue([]);
+    mockContextProvider.getPromptSuggestions.mockResolvedValue([]);
+    mockContextProvider.generateProactiveInsights.mockResolvedValue([]);
+    mockContextProvider.generateWorkflowRecommendations.mockResolvedValue([]);
+
+    mockContextualAIService.getContextSummary.mockResolvedValue({
+      hasContext: true,
+      pageTitle: "Test Page",
+      pageUrl: "https://example.com",
+      contextTypes: ["content", "forms"],
+      tokenCount: 150,
+      lastUpdated: new Date(),
+    });
+
+    mockContextualAIService.sendContextualMessage.mockResolvedValue({
+      message: "This is a test AI response",
+      contextUsed: true,
+      contextTokens: 150,
+    });
   });
 
   it("renders with correct title for ai-ask", () => {
@@ -113,6 +163,22 @@ describe("ChatInterface", () => {
   it("shows loading state after sending message", async () => {
     const user = userEvent.setup();
 
+    // Make the AI service take some time to respond
+    mockContextualAIService.sendContextualMessage.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                message: "Response",
+                contextUsed: true,
+                contextTokens: 100,
+              }),
+            100
+          )
+        )
+    );
+
     render(<ChatInterface {...defaultProps} />);
 
     const textarea = screen.getByPlaceholderText("Ask me anything...");
@@ -120,9 +186,239 @@ describe("ChatInterface", () => {
     await user.type(textarea, "Test message");
     await user.keyboard("{Enter}");
 
-    // Should show loading dots
-    await waitFor(() => {
-      expect(document.querySelector(".loading-dots")).toBeInTheDocument();
+    // Input should be disabled during loading (indicating loading state)
+    expect(textarea).toBeDisabled();
+  });
+
+  describe("Contextual AI Integration", () => {
+    it("displays context toggle when context provider is ready", async () => {
+      render(<ChatInterface {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Context: ON/)).toBeInTheDocument();
+      });
+    });
+
+    it("shows context indicator in subtitle when context is enabled", async () => {
+      render(<ChatInterface {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Context: content, forms/)).toBeInTheDocument();
+      });
+    });
+
+    it("shows context disabled indicator when context is turned off", async () => {
+      const user = userEvent.setup();
+      render(<ChatInterface {...defaultProps} />);
+
+      // Wait for component to load
+      await waitFor(() => {
+        expect(screen.getByText(/Context: ON/)).toBeInTheDocument();
+      });
+
+      // Click context toggle to disable
+      const contextToggle = screen.getByText(/Context: ON/);
+      await user.click(contextToggle);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Context: OFF/)).toBeInTheDocument();
+        expect(screen.getByText(/Context disabled/)).toBeInTheDocument();
+      });
+    });
+
+    it("sends contextual message when context is enabled", async () => {
+      const user = userEvent.setup();
+      render(<ChatInterface {...defaultProps} />);
+
+      const textarea = screen.getByPlaceholderText("Ask me anything...");
+
+      await user.type(textarea, "What is this page about?");
+      await user.keyboard("{Enter}");
+
+      await waitFor(() => {
+        expect(
+          mockContextualAIService.sendContextualMessage
+        ).toHaveBeenCalledWith(
+          "What is this page about?",
+          expect.any(String),
+          expect.objectContaining({
+            useContext: true,
+            maxContextTokens: 1000,
+            includeNetworkData: true,
+            includeDOMChanges: true,
+            includeInteractions: true,
+          })
+        );
+      });
+    });
+
+    it("sends message without context when context is disabled", async () => {
+      const user = userEvent.setup();
+      render(<ChatInterface {...defaultProps} />);
+
+      // Wait for component to load and disable context
+      await waitFor(() => {
+        expect(screen.getByText(/Context: ON/)).toBeInTheDocument();
+      });
+
+      const contextToggle = screen.getByText(/Context: ON/);
+      await user.click(contextToggle);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Context: OFF/)).toBeInTheDocument();
+      });
+
+      const textarea = screen.getByPlaceholderText("Ask me anything...");
+      await user.type(textarea, "Hello");
+      await user.keyboard("{Enter}");
+
+      await waitFor(() => {
+        expect(
+          mockContextualAIService.sendContextualMessage
+        ).toHaveBeenCalledWith(
+          "Hello",
+          expect.any(String),
+          expect.objectContaining({
+            useContext: false,
+          })
+        );
+      });
+    });
+
+    it("displays AI response with context information", async () => {
+      const user = userEvent.setup();
+      render(<ChatInterface {...defaultProps} />);
+
+      const textarea = screen.getByPlaceholderText("Ask me anything...");
+
+      await user.type(textarea, "Test message");
+      await user.keyboard("{Enter}");
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/This is a test AI response/)
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText(/Context: 150 tokens used/)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("handles AI service errors gracefully", async () => {
+      const user = userEvent.setup();
+      mockContextualAIService.sendContextualMessage.mockRejectedValue(
+        new Error("AI service error")
+      );
+
+      render(<ChatInterface {...defaultProps} />);
+
+      const textarea = screen.getByPlaceholderText("Ask me anything...");
+
+      await user.type(textarea, "Test message");
+      await user.keyboard("{Enter}");
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/I'm sorry, I encountered an error/)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("loads context summary on mount", async () => {
+      render(<ChatInterface {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(mockContextualAIService.getContextSummary).toHaveBeenCalled();
+      });
+    });
+
+    it("updates context summary when context is toggled", async () => {
+      const user = userEvent.setup();
+      render(<ChatInterface {...defaultProps} />);
+
+      // Wait for initial load
+      await waitFor(() => {
+        expect(mockContextualAIService.getContextSummary).toHaveBeenCalled();
+      });
+
+      // Reset the mock to count only new calls
+      mockContextualAIService.getContextSummary.mockClear();
+
+      // Toggle context off and on
+      const contextToggle = screen.getByText(/Context: ON/);
+      await user.click(contextToggle);
+      await user.click(screen.getByText(/Context: OFF/));
+
+      await waitFor(() => {
+        expect(
+          mockContextualAIService.getContextSummary
+        ).toHaveBeenCalledWith();
+      });
+    });
+
+    it("shows correct placeholder text for different workflow types", () => {
+      const { rerender } = render(
+        <ChatInterface {...defaultProps} workflowType="ai-ask" />
+      );
+      expect(
+        screen.getByPlaceholderText("Ask me anything...")
+      ).toBeInTheDocument();
+
+      rerender(<ChatInterface {...defaultProps} workflowType="ai-agent" />);
+      expect(
+        screen.getByPlaceholderText("What would you like me to help you with?")
+      ).toBeInTheDocument();
+    });
+
+    it("disables input during loading state", async () => {
+      const user = userEvent.setup();
+
+      // Make the AI service take some time to respond
+      mockContextualAIService.sendContextualMessage.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  message: "Response",
+                  contextUsed: true,
+                  contextTokens: 100,
+                }),
+              100
+            )
+          )
+      );
+
+      render(<ChatInterface {...defaultProps} />);
+
+      const textarea = screen.getByPlaceholderText("Ask me anything...");
+
+      await user.type(textarea, "Test message");
+      await user.keyboard("{Enter}");
+
+      // Input should be disabled during loading
+      expect(textarea).toBeDisabled();
+    });
+  });
+
+  describe("Context Provider Integration", () => {
+    it("does not show context controls when context provider is not ready", () => {
+      mockContextProvider.isReady.mockReturnValue(false);
+
+      render(<ChatInterface {...defaultProps} />);
+
+      expect(screen.queryByText(/Context:/)).not.toBeInTheDocument();
+    });
+
+    it("handles context provider errors gracefully", async () => {
+      mockContextProvider.generateSuggestions.mockRejectedValue(
+        new Error("Context error")
+      );
+
+      render(<ChatInterface {...defaultProps} />);
+
+      // Should still render without crashing
+      expect(screen.getByText("AI Ask")).toBeInTheDocument();
     });
   });
 });

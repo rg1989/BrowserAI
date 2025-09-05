@@ -40,7 +40,7 @@
   - Write integration tests for contextual conversations
   - _Requirements: 1.1, 1.3, 6.2_
 
-- [ ] MVP-5. Enhance ChatInterface for contextual AI
+- [x] MVP-5. Enhance ChatInterface for contextual AI
 
   - Modify existing ChatInterface to use ContextualAIService
   - Add simple context toggle (on/off) in chat interface

@@ -3,12 +3,12 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ChatInterface } from "../../components/ChatInterface";
 import { ContextProvider } from "../../services/ContextProvider";
 import { SuggestionEngine } from "../../services/SuggestionEngine";
-import { PageContextMonitor } from "../../services/PageContextMonitor";
+import { ContextualAIService } from "../../services/ContextualAIService";
 
 // Mock the services
 jest.mock("../../services/ContextProvider");
 jest.mock("../../services/SuggestionEngine");
-jest.mock("../../services/PageContextMonitor");
+jest.mock("../../services/ContextualAIService");
 
 const mockContextProvider = {
   isReady: jest.fn(),
@@ -24,6 +24,12 @@ const mockSuggestionEngine = {
   generateProactiveInsights: jest.fn(),
   generateWorkflowRecommendations: jest.fn(),
   detectCommonPatterns: jest.fn(),
+};
+
+const mockContextualAIService = {
+  sendContextualMessage: jest.fn(),
+  getContextSummary: jest.fn(),
+  generateContextualSuggestions: jest.fn(),
 };
 
 // Mock data
@@ -154,6 +160,24 @@ describe("Contextual Suggestions Integration", () => {
     (SuggestionEngine.getInstance as jest.Mock).mockReturnValue(
       mockSuggestionEngine
     );
+
+    // Setup ContextualAIService mock
+    (ContextualAIService as jest.Mock).mockImplementation(
+      () => mockContextualAIService
+    );
+    mockContextualAIService.getContextSummary.mockResolvedValue({
+      hasContext: true,
+      pageTitle: "Test Page",
+      pageUrl: "https://example.com",
+      contextTypes: ["content", "forms"],
+      tokenCount: 150,
+      lastUpdated: new Date(),
+    });
+    mockContextualAIService.sendContextualMessage.mockResolvedValue({
+      message: "This is a test AI response",
+      contextUsed: true,
+      contextTokens: 150,
+    });
   });
 
   const renderChatInterface = (props = {}) => {
@@ -347,9 +371,15 @@ describe("Contextual Suggestions Integration", () => {
       fireEvent.click(sendButton);
 
       await waitFor(() => {
-        expect(mockContextProvider.enhancePrompt).toHaveBeenCalledWith(
+        expect(
+          mockContextualAIService.sendContextualMessage
+        ).toHaveBeenCalledWith(
           "test message",
-          expect.any(Array)
+          expect.any(String),
+          expect.objectContaining({
+            useContext: true,
+            maxContextTokens: 1000,
+          })
         );
       });
     });
@@ -358,7 +388,7 @@ describe("Contextual Suggestions Integration", () => {
       renderChatInterface();
 
       await waitFor(() => {
-        expect(screen.getByText("• Context-aware")).toBeInTheDocument();
+        expect(screen.getByText(/Context: content, forms/)).toBeInTheDocument();
       });
     });
 
@@ -375,14 +405,14 @@ describe("Contextual Suggestions Integration", () => {
       await waitFor(
         () => {
           expect(mockContextProvider.generateSuggestions).toHaveBeenCalledTimes(
-            3
-          ); // Initial + after message + refresh
+            2
+          ); // Initial + after message
           expect(
             mockContextProvider.generateProactiveInsights
-          ).toHaveBeenCalledTimes(3);
+          ).toHaveBeenCalledTimes(2);
           expect(
             mockContextProvider.generateWorkflowRecommendations
-          ).toHaveBeenCalledTimes(3);
+          ).toHaveBeenCalledTimes(2);
         },
         { timeout: 2000 }
       );
@@ -401,7 +431,7 @@ describe("Contextual Suggestions Integration", () => {
         expect(
           screen.queryByTitle("Toggle AI insights")
         ).not.toBeInTheDocument();
-        expect(screen.queryByText("• Context-aware")).not.toBeInTheDocument();
+        expect(screen.queryByText(/Context:/)).not.toBeInTheDocument();
       });
     });
 
@@ -436,7 +466,7 @@ describe("Contextual Suggestions Integration", () => {
     });
 
     it("should handle context enhancement errors gracefully", async () => {
-      mockContextProvider.enhancePrompt.mockRejectedValue(
+      mockContextualAIService.sendContextualMessage.mockRejectedValue(
         new Error("Enhancement failed")
       );
       const onSendMessage = jest.fn();
@@ -448,9 +478,13 @@ describe("Contextual Suggestions Integration", () => {
       fireEvent.change(input, { target: { value: "test message" } });
       fireEvent.click(sendButton);
 
-      // Should still send the original message
+      // Should show user message and error message, but not call parent callback on error
       await waitFor(() => {
-        expect(onSendMessage).toHaveBeenCalledWith("test message");
+        expect(screen.getByText("test message")).toBeInTheDocument();
+        expect(
+          screen.getByText(/I'm sorry, I encountered an error/)
+        ).toBeInTheDocument();
+        expect(onSendMessage).not.toHaveBeenCalled();
       });
     });
   });

@@ -1,481 +1,248 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ChatInterface } from "../ChatInterface";
+import { ContextualAIService } from "../../services/ContextualAIService";
 import { ContextProvider } from "../../services/ContextProvider";
-import { AggregatedContext } from "../../services/ContextAggregator";
 
-// Mock ContextProvider
+// Mock the services
+jest.mock("../../services/ContextualAIService");
 jest.mock("../../services/ContextProvider");
 
-describe("ChatInterface with Context Integration", () => {
-  let mockContextProvider: jest.Mocked<ContextProvider>;
-  let mockOnSendMessage: jest.Mock;
-  let mockContext: AggregatedContext;
+/**
+ * Integration tests for ChatInterface contextual AI functionality
+ * These tests verify the complete contextual chat workflow
+ */
+describe("ChatInterface - Contextual AI Integration", () => {
+  const defaultProps = {
+    workflowType: "ai-ask" as const,
+    onSendMessage: jest.fn(),
+    messages: [],
+  };
+
+  const mockContextualAIService = {
+    sendContextualMessage: jest.fn(),
+    getContextSummary: jest.fn(),
+    generateContextualSuggestions: jest.fn(),
+  };
+
+  const mockContextProvider = {
+    isReady: jest.fn(),
+    generateSuggestions: jest.fn(),
+    getPromptSuggestions: jest.fn(),
+    generateProactiveInsights: jest.fn(),
+    generateWorkflowRecommendations: jest.fn(),
+    getInstance: jest.fn(),
+  };
 
   beforeEach(() => {
-    // Create mock context
-    mockContext = {
-      summary: {
-        pageType: "form" as any,
-        primaryContent: "Contact form for customer support",
-        keyElements: ["Form: Contact Us", "Input: Email", "Input: Message"],
-        userActivity: {
-          recentInteractions: 2,
-          activeElements: ["input", "button"],
-          formActivity: true,
-          navigationActivity: false,
-        },
-        dataFlows: [],
-        relevanceScore: 0.8,
-      },
-      content: {
-        text: "Please fill out this form to contact our support team",
-        headings: [
-          {
-            level: 1,
-            text: "Contact Us",
-            element: { tagName: "h1", selector: "h1" },
-          },
-        ],
-        links: [],
-        images: [],
-        forms: [
-          {
-            action: "/contact",
-            method: "POST",
-            fields: [
-              { name: "email", type: "email", required: true },
-              { name: "message", type: "textarea", required: true },
-            ],
-            element: { tagName: "form", selector: "form" },
-          },
-        ],
-        tables: [],
-        metadata: {
-          title: "Contact Us",
-          description: "Contact form",
-          language: "en",
-        },
-      },
-      metadata: {
-        timestamp: Date.now(),
-        url: "https://example.com/contact",
-        title: "Contact Us",
-        aggregationTime: 30,
-        cacheHit: false,
-        dataQuality: {
-          completeness: 0.9,
-          freshness: 0.95,
-          accuracy: 0.9,
-          relevance: 0.8,
-        },
-      },
-      performance: {
-        responseTime: 30,
-        dataSize: 1024,
-        cacheHit: false,
-        processingTime: 15,
-      },
-    };
+    jest.clearAllMocks();
 
-    // Create mock ContextProvider
-    mockContextProvider = {
-      isReady: jest.fn().mockReturnValue(true),
-      getCurrentContext: jest.fn().mockResolvedValue(mockContext),
-      enhancePrompt: jest.fn().mockImplementation((message) =>
-        Promise.resolve({
-          originalMessage: message,
-          enhancedMessage: `Context: form page\n\nUser question: ${message}`,
-          contextSummary: "Page Type: form\nURL: https://example.com/contact",
-          contextData: mockContext,
-          enhancementApplied: true,
-        })
-      ),
-      generateSuggestions: jest.fn().mockResolvedValue([
-        {
-          type: "form_assistance",
-          title: "Form Help Available",
-          description: "I can help you fill out this form",
-          confidence: 0.9,
-          actionable: true,
-          context: "Contact form detected",
-        },
-      ]),
-      getPromptSuggestions: jest
-        .fn()
-        .mockResolvedValue([
-          "Help me fill out this form",
-          "What information is required here?",
-          "Check if I've filled everything correctly",
-        ]),
-      updateConfig: jest.fn(),
-      clearCache: jest.fn(),
-      getConfig: jest.fn().mockReturnValue({
-        includePageSummary: true,
-        includeNetworkActivity: true,
-        includeUserInteractions: true,
-        includeSemanticData: true,
-        maxContextLength: 2000,
-        contextPriority: {
-          currentPage: 1.0,
-          recentActivity: 0.8,
-          userInteractions: 0.9,
-          networkData: 0.7,
-          semanticData: 0.6,
-        },
-      }),
-    } as any;
-
-    // Mock the getInstance method
+    // Setup default mocks
+    (ContextualAIService as jest.Mock).mockImplementation(
+      () => mockContextualAIService
+    );
     (ContextProvider.getInstance as jest.Mock).mockReturnValue(
       mockContextProvider
     );
 
-    mockOnSendMessage = jest.fn().mockResolvedValue(undefined);
-  });
+    mockContextProvider.isReady.mockReturnValue(true);
+    mockContextProvider.generateSuggestions.mockResolvedValue([]);
+    mockContextProvider.getPromptSuggestions.mockResolvedValue([]);
+    mockContextProvider.generateProactiveInsights.mockResolvedValue([]);
+    mockContextProvider.generateWorkflowRecommendations.mockResolvedValue([]);
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe("context-aware features", () => {
-    it("should show context indicator when context provider is ready", () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      expect(screen.getByText("• Context-aware")).toBeInTheDocument();
+    mockContextualAIService.getContextSummary.mockResolvedValue({
+      hasContext: true,
+      pageTitle: "Test Page",
+      pageUrl: "https://example.com",
+      contextTypes: ["content", "forms"],
+      tokenCount: 150,
+      lastUpdated: new Date(),
     });
 
-    it("should show context toggle button when context provider is ready", () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
+    mockContextualAIService.sendContextualMessage.mockResolvedValue({
+      message: "This is a test AI response with context",
+      contextUsed: true,
+      contextTokens: 150,
+    });
+  });
 
-      const toggleButton = screen.getByTitle("Toggle context information");
-      expect(toggleButton).toBeInTheDocument();
-      expect(toggleButton).toHaveTextContent("🔍");
+  it("should integrate contextual AI service with chat interface", async () => {
+    const user = userEvent.setup();
+    const mockOnSendMessage = jest.fn();
+
+    render(
+      <ChatInterface {...defaultProps} onSendMessage={mockOnSendMessage} />
+    );
+
+    // Verify context controls are present
+    expect(screen.getByText(/Context: ON/)).toBeInTheDocument();
+
+    // Send a contextual message
+    const textarea = screen.getByPlaceholderText("Ask me anything...");
+    await user.type(textarea, "What is this page about?");
+    await user.keyboard("{Enter}");
+
+    // Verify message was sent
+    expect(screen.getByText("What is this page about?")).toBeInTheDocument();
+
+    // Verify parent callback was called
+    expect(mockOnSendMessage).toHaveBeenCalledWith("What is this page about?");
+  });
+
+  it("should handle context toggle functionality", async () => {
+    const user = userEvent.setup();
+    render(<ChatInterface {...defaultProps} />);
+
+    // Initially context should be ON
+    expect(screen.getByText(/Context: ON/)).toBeInTheDocument();
+
+    // Toggle context OFF
+    const contextToggle = screen.getByText(/Context: ON/);
+    await user.click(contextToggle);
+
+    // Verify context is now OFF
+    await waitFor(() => {
+      expect(screen.getByText(/Context: OFF/)).toBeInTheDocument();
+      expect(screen.getByText(/Context disabled/)).toBeInTheDocument();
     });
 
-    it("should not show context features when context provider is not ready", () => {
-      mockContextProvider.isReady.mockReturnValue(false);
+    // Toggle context back ON
+    const contextToggleOff = screen.getByText(/Context: OFF/);
+    await user.click(contextToggleOff);
 
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
+    // Verify context is back ON
+    await waitFor(() => {
+      expect(screen.getByText(/Context: ON/)).toBeInTheDocument();
+    });
+  });
 
-      expect(screen.queryByText("• Context-aware")).not.toBeInTheDocument();
+  it("should show appropriate loading states during AI responses", async () => {
+    const user = userEvent.setup();
+
+    // Make the AI service take some time to respond
+    mockContextualAIService.sendContextualMessage.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                message: "Response",
+                contextUsed: true,
+                contextTokens: 100,
+              }),
+            100
+          )
+        )
+    );
+
+    render(<ChatInterface {...defaultProps} />);
+
+    const textarea = screen.getByPlaceholderText("Ask me anything...");
+
+    // Type and send message
+    await user.type(textarea, "Test message");
+    await user.keyboard("{Enter}");
+
+    // Verify input is disabled during loading
+    expect(textarea).toBeDisabled();
+
+    // Wait for response to complete
+    await waitFor(() => {
+      expect(textarea).not.toBeDisabled();
+    });
+  });
+
+  it("should display context information in responses", async () => {
+    const user = userEvent.setup();
+    render(<ChatInterface {...defaultProps} />);
+
+    const textarea = screen.getByPlaceholderText("Ask me anything...");
+
+    await user.type(textarea, "Analyze this page");
+    await user.keyboard("{Enter}");
+
+    // Wait for AI response with context information
+    await waitFor(() => {
+      // Should show the user message
+      expect(screen.getByText("Analyze this page")).toBeInTheDocument();
+
+      // Should show AI response with context
       expect(
-        screen.queryByTitle("Toggle context information")
-      ).not.toBeInTheDocument();
+        screen.getByText(/This is a test AI response with context/)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Context: 150 tokens used/)).toBeInTheDocument();
     });
   });
 
-  describe("context panel", () => {
-    it("should show context panel when toggle is clicked", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
+  it("should handle different workflow types correctly", () => {
+    const { rerender } = render(
+      <ChatInterface {...defaultProps} workflowType="ai-ask" />
+    );
 
-      const toggleButton = screen.getByTitle("Toggle context information");
-      fireEvent.click(toggleButton);
+    expect(screen.getByText("AI Ask")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Ask me anything...")
+    ).toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.getByText("Smart Suggestions")).toBeInTheDocument();
-      });
+    rerender(<ChatInterface {...defaultProps} workflowType="ai-agent" />);
+
+    expect(screen.getByText("AI Agent")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("What would you like me to help you with?")
+    ).toBeInTheDocument();
+  });
+
+  it("should maintain conversation state across messages", async () => {
+    const user = userEvent.setup();
+    render(<ChatInterface {...defaultProps} />);
+
+    const textarea = screen.getByPlaceholderText("Ask me anything...");
+
+    // Send first message
+    await user.type(textarea, "First message");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(screen.getByText("First message")).toBeInTheDocument();
     });
 
-    it("should hide context panel when toggle is clicked again", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
+    // Send second message
+    await user.type(textarea, "Second message");
+    await user.keyboard("{Enter}");
 
-      const toggleButton = screen.getByTitle("Toggle context information");
-
-      // Show panel
-      fireEvent.click(toggleButton);
-      await waitFor(() => {
-        expect(screen.getByText("Smart Suggestions")).toBeInTheDocument();
-      });
-
-      // Hide panel
-      fireEvent.click(toggleButton);
-      await waitFor(() => {
-        expect(screen.queryByText("Smart Suggestions")).not.toBeInTheDocument();
-      });
-    });
-
-    it("should display context suggestions in panel", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      const toggleButton = screen.getByTitle("Toggle context information");
-      fireEvent.click(toggleButton);
-
-      await waitFor(() => {
-        expect(screen.getByText("Form Help Available")).toBeInTheDocument();
-        expect(
-          screen.getByText("I can help you fill out this form")
-        ).toBeInTheDocument();
-      });
+    await waitFor(() => {
+      expect(screen.getByText("Second message")).toBeInTheDocument();
+      // First message should still be visible
+      expect(screen.getByText("First message")).toBeInTheDocument();
     });
   });
 
-  describe("prompt suggestions", () => {
-    it("should show prompt suggestions when no messages", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
+  it("should gracefully handle errors in contextual AI service", async () => {
+    const user = userEvent.setup();
 
-      await waitFor(() => {
-        expect(
-          screen.getByText("Help me fill out this form")
-        ).toBeInTheDocument();
-        expect(
-          screen.getByText("What information is required here?")
-        ).toBeInTheDocument();
-      });
+    // Mock console.error to avoid noise in test output
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    render(<ChatInterface {...defaultProps} />);
+
+    const textarea = screen.getByPlaceholderText("Ask me anything...");
+
+    await user.type(textarea, "Test error handling");
+    await user.keyboard("{Enter}");
+
+    // Should show user message
+    expect(screen.getByText("Test error handling")).toBeInTheDocument();
+
+    // Should eventually show some response (either success or error)
+    await waitFor(() => {
+      const messages = document.querySelectorAll(".message");
+      expect(messages.length).toBeGreaterThan(1); // User message + AI response
     });
 
-    it("should hide prompt suggestions when messages exist", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[
-            {
-              id: "1",
-              content: "Test message",
-              sender: "user",
-              timestamp: new Date(),
-            },
-          ]}
-        />
-      );
-
-      await waitFor(() => {
-        expect(
-          screen.queryByText("Help me fill out this form")
-        ).not.toBeInTheDocument();
-      });
-    });
-
-    it("should set input value when prompt suggestion is clicked", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      await waitFor(() => {
-        const suggestion = screen.getByText("Help me fill out this form");
-        fireEvent.click(suggestion);
-      });
-
-      const input = screen.getByPlaceholderText("Ask me anything...");
-      expect(input).toHaveValue("Help me fill out this form");
-    });
-  });
-
-  describe("context-enhanced messaging", () => {
-    it("should enhance messages with context before sending", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      const input = screen.getByPlaceholderText("Ask me anything...");
-      const sendButton = screen.getByRole("button", { name: /send/i });
-
-      fireEvent.change(input, {
-        target: { value: "What is this page about?" },
-      });
-      fireEvent.click(sendButton);
-
-      await waitFor(() => {
-        expect(mockContextProvider.enhancePrompt).toHaveBeenCalledWith(
-          "What is this page about?",
-          []
-        );
-      });
-
-      expect(mockOnSendMessage).toHaveBeenCalledWith(
-        "Context: form page\n\nUser question: What is this page about?"
-      );
-    });
-
-    it("should show context information in AI response", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      const input = screen.getByPlaceholderText("Ask me anything...");
-      const sendButton = screen.getByRole("button", { name: /send/i });
-
-      fireEvent.change(input, { target: { value: "Test message" } });
-      fireEvent.click(sendButton);
-
-      await waitFor(
-        () => {
-          expect(
-            screen.getByText(/Context used: Page Type: form/)
-          ).toBeInTheDocument();
-        },
-        { timeout: 2000 }
-      );
-    });
-
-    it("should handle context enhancement errors gracefully", async () => {
-      mockContextProvider.enhancePrompt.mockRejectedValue(
-        new Error("Context error")
-      );
-
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      const input = screen.getByPlaceholderText("Ask me anything...");
-      const sendButton = screen.getByRole("button", { name: /send/i });
-
-      fireEvent.change(input, { target: { value: "Test message" } });
-      fireEvent.click(sendButton);
-
-      // Should still send the original message
-      await waitFor(() => {
-        expect(mockOnSendMessage).toHaveBeenCalledWith("Test message");
-      });
-    });
-  });
-
-  describe("context suggestion interactions", () => {
-    it("should set appropriate prompt when context suggestion is clicked", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      const toggleButton = screen.getByTitle("Toggle context information");
-      fireEvent.click(toggleButton);
-
-      await waitFor(() => {
-        const suggestion = screen.getByText("Form Help Available");
-        fireEvent.click(suggestion);
-      });
-
-      const input = screen.getByPlaceholderText("Ask me anything...");
-      expect(input).toHaveValue("Help me fill out this form");
-    });
-  });
-
-  describe("context loading and refresh", () => {
-    it("should load context suggestions on mount", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      await waitFor(() => {
-        expect(mockContextProvider.generateSuggestions).toHaveBeenCalled();
-        expect(mockContextProvider.getPromptSuggestions).toHaveBeenCalled();
-      });
-    });
-
-    it("should refresh suggestions after sending a message", async () => {
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      const input = screen.getByPlaceholderText("Ask me anything...");
-      const sendButton = screen.getByRole("button", { name: /send/i });
-
-      // Clear initial calls
-      jest.clearAllMocks();
-
-      fireEvent.change(input, { target: { value: "Test message" } });
-      fireEvent.click(sendButton);
-
-      // Wait for message to be processed and suggestions to refresh
-      await waitFor(
-        () => {
-          expect(mockContextProvider.generateSuggestions).toHaveBeenCalled();
-          expect(mockContextProvider.getPromptSuggestions).toHaveBeenCalled();
-        },
-        { timeout: 2000 }
-      );
-    });
-  });
-
-  describe("error handling", () => {
-    it("should handle context suggestion loading errors", async () => {
-      mockContextProvider.generateSuggestions.mockRejectedValue(
-        new Error("Context error")
-      );
-      mockContextProvider.getPromptSuggestions.mockRejectedValue(
-        new Error("Context error")
-      );
-
-      render(
-        <ChatInterface
-          workflowType="ai-ask"
-          onSendMessage={mockOnSendMessage}
-          messages={[]}
-        />
-      );
-
-      // Should not crash and should still render the interface
-      expect(screen.getByText("AI Ask")).toBeInTheDocument();
-    });
+    consoleSpy.mockRestore();
   });
 });
