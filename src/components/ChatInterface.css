@@ -11,11 +11,42 @@
   margin-bottom: 16px;
 }
 
+.chat-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
 .chat-title {
   color: white;
   font-size: 18px;
   font-weight: 600;
-  margin: 0 0 4px 0;
+  margin: 0;
+}
+
+.context-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.context-info-toggle,
+.insights-toggle {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+}
+
+.context-info-toggle:hover,
+.insights-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .chat-subtitle {
@@ -25,11 +56,278 @@
   margin: 0;
 }
 
+.context-indicator {
+  color: #4ade80;
+  font-weight: 500;
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
   padding: 0 4px;
   min-height: 0;
+}
+
+.context-panel,
+.insights-panel {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0 4px 16px;
+}
+
+.context-suggestions h4 {
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.context-suggestion {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  color: white;
+}
+
+.context-suggestion:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.suggestion-title {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.suggestion-description {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Workflow Recommendations */
+.workflow-recommendations {
+  margin-top: 16px;
+}
+
+.workflow-recommendations h4 {
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.recommendation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workflow-recommendation {
+  background: none;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  color: white;
+}
+
+.workflow-recommendation:hover {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.recommendation-title {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 2px;
+  color: #60a5fa;
+}
+
+.recommendation-description {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 4px;
+}
+
+.recommendation-score {
+  display: block;
+  font-size: 10px;
+  color: rgba(96, 165, 250, 0.8);
+  font-weight: 500;
+}
+
+/* AI Insights */
+.proactive-insights h4 {
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.insight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-insight {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  color: white;
+}
+
+.ai-insight.severity-low {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.ai-insight.severity-medium {
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.ai-insight.severity-high {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.ai-insight:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ai-insight.severity-low:hover {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.ai-insight.severity-medium:hover {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.ai-insight.severity-high:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.insight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.insight-title {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.insight-severity {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.insight-severity.low {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.insight-severity.medium {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.insight-severity.high {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.insight-description {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 6px;
+}
+
+.insight-recommendations {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.insight-recommendations strong {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.insight-recommendations ul {
+  margin: 4px 0 0 0;
+  padding-left: 12px;
+}
+
+.insight-recommendations li {
+  margin-bottom: 2px;
+}
+
+.no-insights {
+  text-align: center;
+  padding: 16px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+.prompt-suggestions {
+  padding: 0 4px 12px;
+}
+
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.suggestion-chip {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.suggestion-chip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.suggestion-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .chat-input {
@@ -67,8 +365,60 @@
     color: #000;
   }
 
+  .context-info-toggle,
+  .insights-toggle {
+    border-color: rgba(0, 0, 0, 0.2);
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  .context-info-toggle:hover,
+  .insights-toggle:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #000;
+    border-color: rgba(0, 0, 0, 0.4);
+  }
+
   .chat-subtitle {
     color: rgba(0, 0, 0, 0.6);
+  }
+
+  .context-indicator {
+    color: #16a34a;
+  }
+
+  .context-panel,
+  .insights-panel {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .context-suggestions h4 {
+    color: #000;
+  }
+
+  .context-suggestion {
+    border-color: rgba(0, 0, 0, 0.2);
+    color: #000;
+  }
+
+  .context-suggestion:hover {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.3);
+  }
+
+  .suggestion-description {
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  .suggestion-chip {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.2);
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .suggestion-chip:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.1);
+    color: #000;
   }
 
   .chat-input {
@@ -85,5 +435,86 @@
 
   .chat-messages::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 0, 0, 0.5);
+  }
+
+  /* Light mode - Workflow Recommendations */
+  .workflow-recommendation {
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #000;
+  }
+
+  .workflow-recommendation:hover {
+    background: rgba(59, 130, 246, 0.05);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+
+  .recommendation-title {
+    color: #2563eb;
+  }
+
+  .recommendation-description {
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  .recommendation-score {
+    color: rgba(37, 99, 235, 0.8);
+  }
+
+  /* Light mode - AI Insights */
+  .proactive-insights h4,
+  .workflow-recommendations h4 {
+    color: #000;
+  }
+
+  .ai-insight {
+    color: #000;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .ai-insight:hover {
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  .ai-insight.severity-low {
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+
+  .ai-insight.severity-medium {
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  .ai-insight.severity-high {
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .ai-insight.severity-low:hover {
+    background: rgba(34, 197, 94, 0.05);
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+
+  .ai-insight.severity-medium:hover {
+    background: rgba(251, 191, 36, 0.05);
+    border-color: rgba(251, 191, 36, 0.4);
+  }
+
+  .ai-insight.severity-high:hover {
+    background: rgba(239, 68, 68, 0.05);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .insight-description {
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  .insight-recommendations {
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .insight-recommendations strong {
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .no-insights {
+    color: rgba(0, 0, 0, 0.5);
   }
 }

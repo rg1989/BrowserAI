@@ -7,6 +7,7 @@ import {
   MonitoringEvent,
 } from "./services/PageContextMonitor";
 import { MonitoringConfigManager } from "./services/MonitoringConfig";
+import { ContextProvider } from "./services/ContextProvider";
 
 // Content script for Spotlight Browser Extension
 // This script injects the SpotlightOverlay component into web pages
@@ -18,6 +19,7 @@ class ContentScript {
   private isOverlayVisible = false;
   private pageContextMonitor: PageContextMonitor | null = null;
   private monitoringConfig: MonitoringConfigManager | null = null;
+  private contextProvider: ContextProvider | null = null;
   private isMonitoringEnabled = false;
 
   constructor() {
@@ -163,6 +165,10 @@ class ContentScript {
       await this.pageContextMonitor.start();
       this.isMonitoringEnabled = true;
 
+      // Initialize ContextProvider with the PageContextMonitor
+      this.contextProvider = ContextProvider.getInstance();
+      this.contextProvider.initialize(this.pageContextMonitor);
+
       console.log("Page context monitoring started successfully");
     } catch (error) {
       console.error("Failed to initialize page context monitoring:", error);
@@ -298,6 +304,12 @@ class ContentScript {
     try {
       await this.pageContextMonitor.stop();
       this.isMonitoringEnabled = false;
+
+      // Clear context provider cache when monitoring is disabled
+      if (this.contextProvider) {
+        this.contextProvider.clearCache();
+      }
+
       console.log("Page context monitoring disabled");
     } catch (error) {
       console.error("Failed to disable monitoring:", error);
