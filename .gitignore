@@ -21,5 +21,8 @@ playwright-report/
 *.env.*.local
 
 # Plasmo generated files
+.plasmorc
 *.plasmorc.cjs
-.plasmo/cache/parcel/data.mdb
+*.plasmo.*
+.plasmo/cache/
+.plasmo/gen-assets/
