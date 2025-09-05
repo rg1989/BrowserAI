@@ -11,8 +11,17 @@ import {
     LayoutSnapshot,
     ContentSnapshot,
     UserInteraction,
-    MonitoringState
+    MonitoringState,
+    MonitoringConfig
 } from '../types/monitoring';
+import {
+    ErrorHandler,
+    ErrorCategory,
+    ErrorSeverity,
+    RecoveryStrategy,
+    CircuitBreaker,
+    withErrorHandling
+} from '../utils/ErrorHandler';
 
 /**
  * Monitoring event types
@@ -35,6 +44,7 @@ export type MonitoringEventListener = (event: MonitoringEvent, data?: any) => vo
 /**
  * Page context monitoring orchestrator
  * Coordinates all monitoring components and provides unified API
+ * Enhanced with comprehensive error handling and recovery mechanisms
  */
 export class PageContextMonitor {
     private networkMonitor: NetworkMonitor;
@@ -53,10 +63,21 @@ export class PageContextMonitor {
     private contentAnalysisTimeout: number | null = null;
     private startTime: number = Date.now();
 
+    // Error handling and recovery
+    private errorHandler: ErrorHandler;
+    private circuitBreaker: CircuitBreaker;
+    private componentHealth: Map<string, { healthy: boolean; lastCheck: Date; errorCount: number }>;
+    private recoveryAttempts: number = 0;
+    private maxRecoveryAttempts: number = 3;
+    private healthCheckInterval: NodeJS.Timeout | null = null;
+    private lastSuccessfulUpdate: Date = new Date();
+    private criticalErrors: number = 0;
+    private maxCriticalErrors: number = 3;
+
     constructor(config?: Partial<MonitoringConfig>) {
         this.config = new MonitoringConfigManager(config);
         this.privacyController = new PrivacyController(this.config.getPrivacyConfig());
-        this.networkMonitor = new NetworkMonitor(this.privacyController);
+        this.networkMonitor = new NetworkMonitor(1000, this.privacyController);
         this.networkStorage = new NetworkStorage(this.config.getStorageConfig());
         this.domObserver = new DOMObserver();
         this.contentAnalyzer = new ContentAnalyzer();
@@ -68,70 +89,133 @@ export class PageContextMonitor {
         this.errorCount = 0;
         this.maxErrors = 5;
 
+        // Initialize error handling
+        this.errorHandler = ErrorHandler.getInstance();
+        this.circuitBreaker = new CircuitBreaker(5, 60000, 30000);
+        this.componentHealth = new Map();
+
+        this.setupErrorHandling();
         this.setupEventHandlers();
+        this.initializeComponentHealth();
     }
 
     /**
-     * Start monitoring page context
+     * Start monitoring page context with comprehensive error handling
      */
     async start(): Promise<void> {
         try {
-            if (this.state === MonitoringState.RUNNING) {
-                console.warn('PageContextMonitor is already running');
-                return;
-            }
-
-            this.state = MonitoringState.STARTING;
-            this.errorCount = 0;
-
-            // Initialize storage
-            await this.networkStorage.initialize();
-
-            // Start individual monitors
-            await this.networkMonitor.start();
-            this.domObserver.startObserving();
-
-            // Start periodic context updates
-            this.startPeriodicUpdates();
-
-            this.state = MonitoringState.RUNNING;
-            this.emit(MonitoringEvent.STARTED);
-
-            console.log('PageContextMonitor started successfully');
+            await this.circuitBreaker.execute(async () => {
+                await this.startMonitoring();
+            });
         } catch (error) {
-            this.state = MonitoringState.ERROR;
-            this.handleError('Failed to start monitoring', error);
+            await this.errorHandler.handleError(
+                ErrorCategory.CONTEXT,
+                ErrorSeverity.CRITICAL,
+                `Failed to start page context monitoring: ${error.message}`,
+                'PageContextMonitor',
+                error instanceof Error ? error : new Error(String(error))
+            );
             throw error;
         }
     }
 
     /**
-     * Stop monitoring page context
+     * Internal start monitoring with error handling
+     */
+    @withErrorHandling(ErrorCategory.CONTEXT, 'PageContextMonitor', ErrorSeverity.HIGH)
+    private async startMonitoring(): Promise<void> {
+        if (this.state === MonitoringState.RUNNING) {
+            console.warn('PageContextMonitor is already running');
+            return;
+        }
+
+        this.state = MonitoringState.STARTING;
+        this.errorCount = 0;
+        this.criticalErrors = 0;
+        this.recoveryAttempts = 0;
+
+        try {
+            // Initialize storage with fallback
+            await this.initializeWithFallback('NetworkStorage', async () => {
+                await this.networkStorage.initialize();
+            });
+
+            // Start individual monitors with graceful degradation
+            await this.startComponentWithFallback('NetworkMonitor', async () => {
+                await this.networkMonitor.start();
+            });
+
+            await this.startComponentWithFallback('DOMObserver', async () => {
+                await this.domObserver.startObserving();
+            });
+
+            // Start periodic context updates
+            this.startPeriodicUpdates();
+            this.startHealthCheck();
+
+            this.state = MonitoringState.RUNNING;
+            this.lastSuccessfulUpdate = new Date();
+            this.emit(MonitoringEvent.STARTED);
+
+            console.log('PageContextMonitor started successfully');
+        } catch (error) {
+            this.state = MonitoringState.ERROR;
+            throw new Error(`Failed to start monitoring: ${error.message}`);
+        }
+    }
+
+    /**
+     * Stop monitoring page context with comprehensive cleanup
      */
     async stop(): Promise<void> {
         try {
-            if (this.state === MonitoringState.STOPPED) {
-                return;
-            }
+            await this.stopMonitoring();
+        } catch (error) {
+            await this.errorHandler.handleError(
+                ErrorCategory.CONTEXT,
+                ErrorSeverity.MEDIUM,
+                `Error stopping page context monitoring: ${error.message}`,
+                'PageContextMonitor',
+                error instanceof Error ? error : new Error(String(error))
+            );
+        }
+    }
 
-            this.state = MonitoringState.STOPPING;
+    /**
+     * Internal stop monitoring with error handling
+     */
+    private async stopMonitoring(): Promise<void> {
+        if (this.state === MonitoringState.STOPPED) {
+            return;
+        }
 
-            // Stop periodic updates
+        this.state = MonitoringState.STOPPING;
+
+        try {
+            // Stop periodic updates and health checks
             this.stopPeriodicUpdates();
+            this.stopHealthCheck();
 
-            // Stop individual monitors
-            await this.networkMonitor.stop();
-            this.domObserver.stopObserving();
+            // Stop individual monitors with error handling
+            const stopPromises = [
+                this.stopComponentSafely('NetworkMonitor', () => this.networkMonitor.stop()),
+                this.stopComponentSafely('DOMObserver', () => this.domObserver.stopObserving()),
+                this.stopComponentSafely('NetworkStorage', () => this.networkStorage.cleanup())
+            ];
 
-            // Clean up storage
-            await this.networkStorage.cleanup();
+            await Promise.allSettled(stopPromises);
+
+            // Reset circuit breaker
+            this.circuitBreaker.reset();
 
             this.state = MonitoringState.STOPPED;
             this.emit(MonitoringEvent.STOPPED);
 
             console.log('PageContextMonitor stopped successfully');
         } catch (error) {
-            this.handleError('Failed to stop monitoring', error);
+            console.error('Error during PageContextMonitor shutdown:', error);
+            this.state = MonitoringState.ERROR;
+            throw error;
         }
     }
 
@@ -538,11 +622,479 @@ export class PageContextMonitor {
     }
 
     /**
-     * Cleanup resources
+     * Get monitoring health status
+     */
+    getHealthStatus(): {
+        state: MonitoringState;
+        componentHealth: Record<string, { healthy: boolean; lastCheck: Date; errorCount: number }>;
+        errorCount: number;
+        criticalErrors: number;
+        recoveryAttempts: number;
+        circuitBreakerState: string;
+        lastSuccessfulUpdate: Date;
+        uptime: number;
+    } {
+        const healthStatus: Record<string, { healthy: boolean; lastCheck: Date; errorCount: number }> = {};
+
+        for (const [component, health] of this.componentHealth.entries()) {
+            healthStatus[component] = { ...health };
+        }
+
+        return {
+            state: this.state,
+            componentHealth: healthStatus,
+            errorCount: this.errorCount,
+            criticalErrors: this.criticalErrors,
+            recoveryAttempts: this.recoveryAttempts,
+            circuitBreakerState: this.circuitBreaker.getState(),
+            lastSuccessfulUpdate: this.lastSuccessfulUpdate,
+            uptime: this.getUptime()
+        };
+    }
+
+    /**
+     * Attempt to recover from errors
+     */
+    async recover(): Promise<boolean> {
+        try {
+            if (this.errorHandler.shouldDisableComponent('PageContextMonitor')) {
+                console.warn('PageContextMonitor disabled due to too many errors');
+                return false;
+            }
+
+            if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+                console.error('Max recovery attempts reached for PageContextMonitor');
+                return false;
+            }
+
+            this.recoveryAttempts++;
+            console.log(`Attempting PageContextMonitor recovery (attempt ${this.recoveryAttempts})`);
+
+            // Stop current monitoring
+            await this.stopMonitoring();
+
+            // Wait before restarting
+            await this.sleep(2000 * this.recoveryAttempts);
+
+            // Restart monitoring
+            await this.startMonitoring();
+
+            console.log(`PageContextMonitor recovered successfully after ${this.recoveryAttempts} attempts`);
+            return true;
+        } catch (error) {
+            await this.errorHandler.handleError(
+                ErrorCategory.CONTEXT,
+                ErrorSeverity.CRITICAL,
+                `PageContextMonitor recovery failed: ${error.message}`,
+                'PageContextMonitor',
+                error instanceof Error ? error : new Error(String(error))
+            );
+            return false;
+        }
+    }
+
+    /**
+     * Setup error handling callbacks
+     */
+    private setupErrorHandling(): void {
+        this.errorHandler.onError(ErrorCategory.CONTEXT, async (error) => {
+            this.errorCount++;
+
+            if (error.severity === ErrorSeverity.CRITICAL) {
+                this.criticalErrors++;
+
+                if (this.criticalErrors >= this.maxCriticalErrors) {
+                    console.error('Too many critical errors, stopping monitoring');
+                    await this.stop();
+                } else {
+                    console.error('Critical error detected, attempting recovery');
+                    await this.recover();
+                }
+            }
+        });
+
+        // Set up component-specific error handlers
+        this.errorHandler.onError(ErrorCategory.NETWORK, (error) => {
+            this.updateComponentHealth('NetworkMonitor', false);
+        });
+
+        this.errorHandler.onError(ErrorCategory.DOM, (error) => {
+            this.updateComponentHealth('DOMObserver', false);
+        });
+
+        this.errorHandler.onError(ErrorCategory.STORAGE, (error) => {
+            this.updateComponentHealth('NetworkStorage', false);
+        });
+    }
+
+    /**
+     * Initialize component health tracking
+     */
+    private initializeComponentHealth(): void {
+        const components = ['NetworkMonitor', 'DOMObserver', 'NetworkStorage', 'ContentAnalyzer', 'ContextAggregator'];
+
+        components.forEach(component => {
+            this.componentHealth.set(component, {
+                healthy: true,
+                lastCheck: new Date(),
+                errorCount: 0
+            });
+        });
+    }
+
+    /**
+     * Update component health status
+     */
+    private updateComponentHealth(component: string, healthy: boolean): void {
+        const health = this.componentHealth.get(component);
+        if (health) {
+            health.healthy = healthy;
+            health.lastCheck = new Date();
+            if (!healthy) {
+                health.errorCount++;
+            }
+        }
+    }
+
+    /**
+     * Start component with fallback handling
+     */
+    private async startComponentWithFallback(componentName: string, startFn: () => Promise<void>): Promise<void> {
+        try {
+            await startFn();
+            this.updateComponentHealth(componentName, true);
+            console.log(`${componentName} started successfully`);
+        } catch (error) {
+            this.updateComponentHealth(componentName, false);
+
+            await this.errorHandler.handleError(
+                this.getComponentErrorCategory(componentName),
+                ErrorSeverity.HIGH,
+                `Failed to start ${componentName}: ${error.message}`,
+                'PageContextMonitor',
+                error instanceof Error ? error : new Error(String(error)),
+                { component: componentName }
+            );
+
+            // Continue with graceful degradation
+            console.warn(`${componentName} failed to start, continuing with degraded functionality`);
+        }
+    }
+
+    /**
+     * Stop component safely with error handling
+     */
+    private async stopComponentSafely(componentName: string, stopFn: () => Promise<void>): Promise<void> {
+        try {
+            await stopFn();
+            console.log(`${componentName} stopped successfully`);
+        } catch (error) {
+            console.warn(`Error stopping ${componentName}:`, error);
+        }
+    }
+
+    /**
+     * Initialize with fallback handling
+     */
+    private async initializeWithFallback(componentName: string, initFn: () => Promise<void>): Promise<void> {
+        try {
+            await initFn();
+            this.updateComponentHealth(componentName, true);
+        } catch (error) {
+            this.updateComponentHealth(componentName, false);
+
+            await this.errorHandler.handleError(
+                ErrorCategory.STORAGE,
+                ErrorSeverity.MEDIUM,
+                `Failed to initialize ${componentName}: ${error.message}`,
+                'PageContextMonitor',
+                error instanceof Error ? error : new Error(String(error)),
+                { component: componentName }
+            );
+
+            // Continue without this component
+            console.warn(`${componentName} initialization failed, continuing without it`);
+        }
+    }
+
+    /**
+     * Get error category for component
+     */
+    private getComponentErrorCategory(componentName: string): ErrorCategory {
+        switch (componentName) {
+            case 'NetworkMonitor':
+                return ErrorCategory.NETWORK;
+            case 'DOMObserver':
+                return ErrorCategory.DOM;
+            case 'NetworkStorage':
+                return ErrorCategory.STORAGE;
+            case 'ContentAnalyzer':
+            case 'ContextAggregator':
+                return ErrorCategory.CONTEXT;
+            default:
+                return ErrorCategory.UNKNOWN;
+        }
+    }
+
+    /**
+     * Start health check monitoring
+     */
+    private startHealthCheck(): void {
+        this.healthCheckInterval = setInterval(() => {
+            this.performHealthCheck();
+        }, 60000); // Check every minute
+    }
+
+    /**
+     * Stop health check monitoring
+     */
+    private stopHealthCheck(): void {
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+            this.healthCheckInterval = null;
+        }
+    }
+
+    /**
+     * Perform comprehensive health check
+     */
+    private async performHealthCheck(): Promise<void> {
+        try {
+            if (this.state !== MonitoringState.RUNNING) {
+                return;
+            }
+
+            // Check component health
+            const networkHealth = this.networkMonitor.isActive();
+            const domHealth = this.domObserver.isActive();
+
+            this.updateComponentHealth('NetworkMonitor', networkHealth);
+            this.updateComponentHealth('DOMObserver', domHealth);
+
+            // Check if context updates are working
+            const timeSinceLastUpdate = Date.now() - this.lastSuccessfulUpdate.getTime();
+            if (timeSinceLastUpdate > 300000) { // 5 minutes
+                await this.errorHandler.handleError(
+                    ErrorCategory.CONTEXT,
+                    ErrorSeverity.MEDIUM,
+                    'Context updates have been stalled for too long',
+                    'PageContextMonitor',
+                    undefined,
+                    { timeSinceLastUpdate }
+                );
+            }
+
+            // Check circuit breaker state
+            if (this.circuitBreaker.getState() === 'open') {
+                console.warn('PageContextMonitor circuit breaker is open');
+            }
+
+            // Reset error counts if monitoring is stable
+            if (this.errorCount > 0 && this.state === MonitoringState.RUNNING) {
+                this.errorCount = Math.max(0, this.errorCount - 1);
+            }
+
+        } catch (error) {
+            console.error('Health check failed:', error);
+        }
+    }
+
+    /**
+     * Enhanced update context with error handling
+     */
+    private async updateContext(): Promise<void> {
+        try {
+            // Get current snapshots from all monitors with fallbacks
+            const networkActivity = await this.getNetworkActivitySafely();
+            const layoutSnapshot = this.getLayoutSnapshotSafely();
+            const contentSnapshot = this.getContentSnapshotSafely();
+            const userInteractions = this.getUserInteractionsSafely();
+
+            // Create new context
+            this.currentContext = {
+                url: window.location.href,
+                title: document.title,
+                timestamp: Date.now(),
+                network: networkActivity,
+                layout: layoutSnapshot,
+                content: contentSnapshot,
+                interactions: userInteractions,
+                metadata: {
+                    userAgent: navigator.userAgent,
+                    viewport: {
+                        width: window.innerWidth,
+                        height: window.innerHeight
+                    },
+                    scrollPosition: {
+                        x: window.scrollX,
+                        y: window.scrollY
+                    }
+                }
+            };
+
+            this.lastSuccessfulUpdate = new Date();
+            this.emit(MonitoringEvent.CONTEXT_UPDATED, this.currentContext);
+        } catch (error) {
+            throw new Error(`Context update failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Get network activity with error handling
+     */
+    private async getNetworkActivitySafely(): Promise<NetworkActivity> {
+        try {
+            if (!this.componentHealth.get('NetworkMonitor')?.healthy) {
+                return this.getEmptyNetworkActivity();
+            }
+
+            return await this.getNetworkActivity();
+        } catch (error) {
+            console.warn('Failed to get network activity, using fallback:', error);
+            return this.getEmptyNetworkActivity();
+        }
+    }
+
+    /**
+     * Get layout snapshot with error handling
+     */
+    private getLayoutSnapshotSafely(): LayoutSnapshot {
+        try {
+            if (!this.componentHealth.get('DOMObserver')?.healthy) {
+                return this.getEmptyLayoutSnapshot();
+            }
+
+            return this.domObserver.getCurrentLayout();
+        } catch (error) {
+            console.warn('Failed to get layout snapshot, using fallback:', error);
+            return this.getEmptyLayoutSnapshot();
+        }
+    }
+
+    /**
+     * Get content snapshot with error handling
+     */
+    private getContentSnapshotSafely(): ContentSnapshot {
+        try {
+            return this.contentAnalyzer.extractContent();
+        } catch (error) {
+            console.warn('Failed to extract content, using fallback:', error);
+            return this.getEmptyContentSnapshot();
+        }
+    }
+
+    /**
+     * Get user interactions with error handling
+     */
+    private getUserInteractionsSafely(): UserInteraction[] {
+        try {
+            if (!this.componentHealth.get('DOMObserver')?.healthy) {
+                return [];
+            }
+
+            return this.domObserver.getRecentInteractions();
+        } catch (error) {
+            console.warn('Failed to get user interactions, using fallback:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Fallback methods for graceful degradation
+     */
+    private getEmptyNetworkActivity(): NetworkActivity {
+        return {
+            recentRequests: [],
+            totalRequests: 0,
+            totalDataTransferred: 0,
+            averageResponseTime: 0
+        };
+    }
+
+    private getEmptyLayoutSnapshot(): LayoutSnapshot {
+        return {
+            viewport: {
+                width: window.innerWidth || 1024,
+                height: window.innerHeight || 768,
+                scrollX: window.scrollX || 0,
+                scrollY: window.scrollY || 0,
+                devicePixelRatio: window.devicePixelRatio || 1
+            },
+            visibleElements: [],
+            scrollPosition: {
+                x: window.scrollX || 0,
+                y: window.scrollY || 0,
+                maxX: 0,
+                maxY: 0
+            },
+            modals: [],
+            overlays: []
+        };
+    }
+
+    private getEmptyContentSnapshot(): ContentSnapshot {
+        return {
+            text: document.title || '',
+            headings: [],
+            links: [],
+            images: [],
+            forms: [],
+            tables: [],
+            metadata: {
+                title: document.title || '',
+                description: undefined,
+                keywords: undefined,
+                author: undefined,
+                canonical: undefined,
+                language: document.documentElement.lang || undefined
+            }
+        };
+    }
+
+    /**
+     * Enhanced error handling
+     */
+    private async handleError(message: string, error: any): Promise<void> {
+        this.errorCount++;
+
+        await this.errorHandler.handleError(
+            ErrorCategory.CONTEXT,
+            ErrorSeverity.HIGH,
+            message,
+            'PageContextMonitor',
+            error instanceof Error ? error : new Error(String(error)),
+            { errorCount: this.errorCount }
+        );
+
+        this.emit(MonitoringEvent.ERROR, { message, error, count: this.errorCount });
+
+        // Stop monitoring if too many errors
+        if (this.errorCount >= this.maxErrors) {
+            console.error('Too many errors, stopping monitoring');
+            await this.stop();
+        }
+    }
+
+    /**
+     * Sleep utility for delays
+     */
+    private sleep(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Cleanup resources with comprehensive error handling
      */
     async destroy(): Promise<void> {
-        await this.stop();
-        this.eventListeners.clear();
-        this.currentContext = null;
+        try {
+            await this.stop();
+            this.eventListeners.clear();
+            this.componentHealth.clear();
+            this.currentContext = null;
+
+            console.log('PageContextMonitor destroyed successfully');
+        } catch (error) {
+            console.error('Error during PageContextMonitor destruction:', error);
+        }
     }
 }

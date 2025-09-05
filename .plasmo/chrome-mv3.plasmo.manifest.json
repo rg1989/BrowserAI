@@ -19,7 +19,7 @@
   },
   "version": "1.0.0",
   "author": "",
-  "name": "DEV | Spotlight Browser Extension",
+  "name": "Spotlight Browser Extension",
   "description": "A Spotlight-like browser extension with configurable workflows",
   "background": {
     "service_worker": "./static/background/index.ts"
@@ -30,7 +30,7 @@
         "<all_urls>"
       ],
       "js": [
-        "../src/content.ts"
+        "..\\src\\content.ts"
       ]
     }
   ]

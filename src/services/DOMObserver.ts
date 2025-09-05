@@ -11,6 +11,21 @@ import {
     InteractionContext,
     OverlayType
 } from '../types/monitoring';
+import {
+    ErrorHandler,
+    ErrorCategory,
+    ErrorSeverity,
+    RecoveryStrategy,
+    CircuitBreaker,
+    withErrorHandling
+} from '../utils/ErrorHandler';
+import {
+    PerformanceMonitor,
+    PerformanceMetrics,
+    PerformanceAlertLevel,
+    AdaptiveThrottler,
+    withPerformanceMonitoring
+} from '../utils/PerformanceMonitor';
 
 /**
  * DOM change information
@@ -31,6 +46,7 @@ export interface DOMChange {
 /**
  * DOM observer service for monitoring page changes and user interactions
  * Uses MutationObserver, IntersectionObserver, and event listeners
+ * Enhanced with comprehensive error handling and recovery mechanisms
  */
 export class DOMObserver {
     private mutationObserver: MutationObserver | null = null;
@@ -57,6 +73,31 @@ export class DOMObserver {
     private currentViewport: ViewportInfo | null = null;
     private visibleElements: VisibleElement[] = [];
 
+    // Error handling and recovery
+    private errorHandler: ErrorHandler;
+    private circuitBreaker: CircuitBreaker;
+    private isPaused: boolean = false;
+    private reconnectAttempts: number = 0;
+    private maxReconnectAttempts: number = 3;
+    private observerErrors: number = 0;
+    private maxObserverErrors: number = 5;
+    private healthCheckInterval: NodeJS.Timeout | null = null;
+    private lastHealthCheck: Date = new Date();
+    private observerStats = {
+        totalMutations: 0,
+        totalInteractions: 0,
+        errorCount: 0,
+        lastError: null as Date | null
+    };
+
+    // Performance monitoring
+    private performanceMonitor: PerformanceMonitor;
+    private throttler: AdaptiveThrottler;
+    private dynamicThrottleInterval: number;
+    private lastPerformanceOptimization: Date = new Date();
+    private mutationProcessingTime: number[] = [];
+    private interactionProcessingTime: number[] = [];
+
     constructor(
         throttleInterval: number = 100,
         maxChanges: number = 1000,
@@ -65,36 +106,133 @@ export class DOMObserver {
         this.throttleInterval = throttleInterval;
         this.maxChanges = maxChanges;
         this.maxInteractions = maxInteractions;
+        this.errorHandler = ErrorHandler.getInstance();
+        this.circuitBreaker = new CircuitBreaker(3, 30000, 15000);
+        this.performanceMonitor = PerformanceMonitor.getInstance();
+        this.throttler = new AdaptiveThrottler();
+        this.dynamicThrottleInterval = throttleInterval;
+
+        // Set up error handling and performance monitoring
+        this.setupErrorHandling();
+        this.setupPerformanceMonitoring();
     }
 
     /**
-     * Start observing DOM changes and user interactions
+     * Start observing DOM changes and user interactions with error handling
      */
-    startObserving(): void {
-        if (this.isObserving || typeof window === 'undefined') {
+    async startObserving(): Promise<void> {
+        try {
+            await this.circuitBreaker.execute(async () => {
+                await this.initializeObserving();
+            });
+        } catch (error) {
+            await this.errorHandler.handleError(
+                ErrorCategory.DOM,
+                ErrorSeverity.HIGH,
+                `Failed to start DOM observing: ${error.message}`,
+                'DOMObserver',
+                error instanceof Error ? error : new Error(String(error))
+            );
+            throw error;
+        }
+    }
+
+    /**
+     * Initialize DOM observing with error handling
+     */
+    @withErrorHandling(ErrorCategory.DOM, 'DOMObserver', ErrorSeverity.MEDIUM)
+    private async initializeObserving(): Promise<void> {
+        if (this.isObserving) {
+            console.warn('DOMObserver is already observing');
             return;
         }
 
-        this.isObserving = true;
-        this.setupMutationObserver();
-        this.setupIntersectionObserver();
-        this.setupResizeObserver();
-        this.setupEventListeners();
-        this.updateViewportInfo();
+        if (typeof window === 'undefined') {
+            throw new Error('Window object not available');
+        }
+
+        try {
+            this.isObserving = true;
+            this.isPaused = false;
+            this.observerErrors = 0;
+            this.reconnectAttempts = 0;
+
+            await this.setupMutationObserver();
+            await this.setupIntersectionObserver();
+            await this.setupResizeObserver();
+            await this.setupEventListeners();
+
+            this.updateViewportInfo();
+            this.startHealthCheck();
+
+            console.log('DOMObserver started successfully');
+        } catch (error) {
+            this.isObserving = false;
+            throw new Error(`Failed to initialize DOM observing: ${error.message}`);
+        }
     }
 
     /**
-     * Stop observing DOM changes and user interactions
+     * Stop observing DOM changes and user interactions with cleanup
      */
-    stopObserving(): void {
+    async stopObserving(): Promise<void> {
+        try {
+            await this.cleanupObserving();
+        } catch (error) {
+            await this.errorHandler.handleError(
+                ErrorCategory.DOM,
+                ErrorSeverity.MEDIUM,
+                `Error stopping DOM observing: ${error.message}`,
+                'DOMObserver',
+                error instanceof Error ? error : new Error(String(error))
+            );
+        }
+    }
+
+    /**
+     * Cleanup DOM observing
+     */
+    private async cleanupObserving(): Promise<void> {
         if (!this.isObserving) {
             return;
         }
 
-        this.isObserving = false;
-        this.cleanupObservers();
-        this.cleanupEventListeners();
-        this.clearPendingWork();
+        try {
+            this.isObserving = false;
+            this.isPaused = false;
+            this.stopHealthCheck();
+
+            await this.cleanupObservers();
+            await this.cleanupEventListeners();
+            this.clearPendingWork();
+
+            this.circuitBreaker.reset();
+
+            console.log('DOMObserver stopped successfully');
+        } catch (error) {
+            console.error('Error during DOMObserver cleanup:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Pause observing (keeps observers but stops processing)
+     */
+    pauseObserving(): void {
+        if (this.isObserving && !this.isPaused) {
+            this.isPaused = true;
+            console.log('DOMObserver paused');
+        }
+    }
+
+    /**
+     * Resume observing from paused state
+     */
+    resumeObserving(): void {
+        if (this.isObserving && this.isPaused) {
+            this.isPaused = false;
+            console.log('DOMObserver resumed');
+        }
     }
 
     /**
@@ -152,76 +290,198 @@ export class DOMObserver {
      * Check if observer is currently active
      */
     isActive(): boolean {
-        return this.isObserving;
+        return this.isObserving && !this.isPaused;
     }
 
-    private setupMutationObserver(): void {
-        if (!window.MutationObserver) {
-            console.warn('MutationObserver not supported');
-            return;
+    /**
+     * Get observer statistics
+     */
+    getStatistics(): {
+        totalMutations: number;
+        totalInteractions: number;
+        errorCount: number;
+        isActive: boolean;
+        isPaused: boolean;
+        circuitBreakerState: string;
+        lastHealthCheck: Date;
+        reconnectAttempts: number;
+    } {
+        return {
+            ...this.observerStats,
+            isActive: this.isObserving,
+            isPaused: this.isPaused,
+            circuitBreakerState: this.circuitBreaker.getState(),
+            lastHealthCheck: this.lastHealthCheck,
+            reconnectAttempts: this.reconnectAttempts
+        };
+    }
+
+    /**
+     * Attempt to recover from observer errors
+     */
+    async recover(): Promise<boolean> {
+        try {
+            if (this.errorHandler.shouldDisableComponent('DOMObserver')) {
+                console.warn('DOMObserver disabled due to too many errors');
+                return false;
+            }
+
+            if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                console.error('Max reconnection attempts reached for DOMObserver');
+                return false;
+            }
+
+            this.reconnectAttempts++;
+
+            // Stop current observing
+            await this.cleanupObserving();
+
+            // Wait before reconnecting
+            await this.sleep(1000 * this.reconnectAttempts);
+
+            // Restart observing
+            await this.initializeObserving();
+
+            console.log(`DOMObserver recovered after ${this.reconnectAttempts} attempts`);
+            return true;
+        } catch (error) {
+            await this.errorHandler.handleError(
+                ErrorCategory.DOM,
+                ErrorSeverity.HIGH,
+                `DOM observer recovery failed: ${error.message}`,
+                'DOMObserver',
+                error instanceof Error ? error : new Error(String(error))
+            );
+            return false;
         }
-
-        this.mutationObserver = new MutationObserver((mutations) => {
-            this.pendingChanges.push(...mutations);
-            this.scheduleProcessing();
-        });
-
-        this.mutationObserver.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeOldValue: true,
-            characterData: true,
-            characterDataOldValue: true
-        });
     }
 
-    private setupIntersectionObserver(): void {
-        if (!window.IntersectionObserver) {
-            console.warn('IntersectionObserver not supported');
-            return;
-        }
+    private async setupMutationObserver(): Promise<void> {
+        try {
+            if (!window.MutationObserver) {
+                throw new Error('MutationObserver not supported');
+            }
 
-        this.intersectionObserver = new IntersectionObserver((entries) => {
-            this.updateVisibleElements(entries);
-        }, {
-            threshold: [0, 0.25, 0.5, 0.75, 1.0],
-            rootMargin: '50px'
-        });
+            this.mutationObserver = new MutationObserver((mutations) => {
+                try {
+                    if (this.isPaused) return;
 
-        // Observe key content elements
-        this.observeContentElements();
-    }
-
-    private setupResizeObserver(): void {
-        if (!window.ResizeObserver) {
-            console.warn('ResizeObserver not supported');
-            return;
-        }
-
-        this.resizeObserver = new ResizeObserver(() => {
-            this.updateViewportInfo();
-        });
-
-        this.resizeObserver.observe(document.body);
-    }
-
-    private setupEventListeners(): void {
-        const events = [
-            'click', 'input', 'submit', 'scroll', 'focus', 'blur', 'keydown'
-        ];
-
-        events.forEach(eventType => {
-            const listener = (event: Event) => {
-                this.handleUserInteraction(event);
-            };
-
-            this.eventListeners.set(eventType, listener);
-            document.addEventListener(eventType, listener, {
-                passive: true,
-                capture: true
+                    this.observerStats.totalMutations += mutations.length;
+                    this.pendingChanges.push(...mutations);
+                    this.scheduleProcessing();
+                } catch (error) {
+                    this.handleObserverError('MutationObserver callback', error);
+                }
             });
-        });
+
+            this.mutationObserver.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeOldValue: true,
+                characterData: true,
+                characterDataOldValue: true
+            });
+
+            console.log('MutationObserver setup successfully');
+        } catch (error) {
+            throw new Error(`Failed to setup MutationObserver: ${error.message}`);
+        }
+    }
+
+    private async setupIntersectionObserver(): Promise<void> {
+        try {
+            if (!window.IntersectionObserver) {
+                console.warn('IntersectionObserver not supported, using fallback');
+                return;
+            }
+
+            this.intersectionObserver = new IntersectionObserver((entries) => {
+                try {
+                    if (this.isPaused) return;
+                    this.updateVisibleElements(entries);
+                } catch (error) {
+                    this.handleObserverError('IntersectionObserver callback', error);
+                }
+            }, {
+                threshold: [0, 0.25, 0.5, 0.75, 1.0],
+                rootMargin: '50px'
+            });
+
+            // Observe key content elements
+            await this.observeContentElements();
+
+            console.log('IntersectionObserver setup successfully');
+        } catch (error) {
+            console.warn(`IntersectionObserver setup failed: ${error.message}`);
+            // Continue without intersection observer - graceful degradation
+        }
+    }
+
+    private async setupResizeObserver(): Promise<void> {
+        try {
+            if (!window.ResizeObserver) {
+                console.warn('ResizeObserver not supported, using fallback');
+                // Set up window resize listener as fallback
+                window.addEventListener('resize', () => {
+                    try {
+                        if (!this.isPaused) {
+                            this.updateViewportInfo();
+                        }
+                    } catch (error) {
+                        this.handleObserverError('Window resize handler', error);
+                    }
+                });
+                return;
+            }
+
+            this.resizeObserver = new ResizeObserver(() => {
+                try {
+                    if (this.isPaused) return;
+                    this.updateViewportInfo();
+                } catch (error) {
+                    this.handleObserverError('ResizeObserver callback', error);
+                }
+            });
+
+            this.resizeObserver.observe(document.body);
+
+            console.log('ResizeObserver setup successfully');
+        } catch (error) {
+            console.warn(`ResizeObserver setup failed: ${error.message}`);
+            // Continue without resize observer - graceful degradation
+        }
+    }
+
+    private async setupEventListeners(): Promise<void> {
+        try {
+            const events = [
+                'click', 'input', 'submit', 'scroll', 'focus', 'blur', 'keydown'
+            ];
+
+            events.forEach(eventType => {
+                const listener = (event: Event) => {
+                    try {
+                        if (this.isPaused) return;
+
+                        this.observerStats.totalInteractions++;
+                        this.handleUserInteraction(event);
+                    } catch (error) {
+                        this.handleObserverError(`${eventType} event handler`, error);
+                    }
+                };
+
+                this.eventListeners.set(eventType, listener);
+                document.addEventListener(eventType, listener, {
+                    passive: true,
+                    capture: true
+                });
+            });
+
+            console.log('Event listeners setup successfully');
+        } catch (error) {
+            throw new Error(`Failed to setup event listeners: ${error.message}`);
+        }
     }
 
     private scheduleProcessing(): void {
@@ -712,5 +972,639 @@ export class DOMObserver {
             this.processingTimer = null;
         }
         this.pendingChanges = [];
+    }
+
+    /**
+     * Set up error handling callbacks
+     */
+    private setupErrorHandling(): void {
+        this.errorHandler.onError(ErrorCategory.DOM, async (error) => {
+            this.observerErrors++;
+            this.observerStats.errorCount++;
+            this.observerStats.lastError = new Date();
+
+            if (error.severity === ErrorSeverity.CRITICAL) {
+                console.error('Critical DOM observer error, attempting recovery');
+                await this.recover();
+            } else if (this.observerErrors >= this.maxObserverErrors) {
+                console.warn('Too many DOM observer errors, pausing observation');
+                this.pauseObserving();
+            }
+        });
+    }
+
+    /**
+     * Handle observer-specific errors
+     */
+    private async handleObserverError(context: string, error: any): Promise<void> {
+        await this.errorHandler.handleError(
+            ErrorCategory.DOM,
+            ErrorSeverity.LOW,
+            `${context} error: ${error.message || error}`,
+            'DOMObserver',
+            error instanceof Error ? error : new Error(String(error)),
+            { context }
+        );
+    }
+
+    /**
+     * Start health check monitoring
+     */
+    private startHealthCheck(): void {
+        this.healthCheckInterval = setInterval(() => {
+            this.performHealthCheck();
+        }, 30000); // Check every 30 seconds
+    }
+
+    /**
+     * Stop health check monitoring
+     */
+    private stopHealthCheck(): void {
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+            this.healthCheckInterval = null;
+        }
+    }
+
+    /**
+     * Perform health check on observers
+     */
+    private async performHealthCheck(): Promise<void> {
+        try {
+            this.lastHealthCheck = new Date();
+
+            if (!this.isObserving || this.isPaused) {
+                return;
+            }
+
+            // Check if observers are still connected
+            let observersHealthy = true;
+
+            if (this.mutationObserver) {
+                try {
+                    // Test if mutation observer is still working by checking if it's connected
+                    // This is a simple check - in a real scenario you might want more sophisticated testing
+                    if (!document.body) {
+                        observersHealthy = false;
+                    }
+                } catch (error) {
+                    observersHealthy = false;
+                }
+            }
+
+            if (!observersHealthy) {
+                await this.errorHandler.handleError(
+                    ErrorCategory.DOM,
+                    ErrorSeverity.MEDIUM,
+                    'DOM observers appear to be disconnected, attempting recovery',
+                    'DOMObserver'
+                );
+                await this.recover();
+            }
+
+            // Reset error count if observing is stable
+            if (this.observerErrors > 0 && this.isObserving && !this.isPaused) {
+                this.observerErrors = Math.max(0, this.observerErrors - 1);
+            }
+
+            // Check circuit breaker state
+            if (this.circuitBreaker.getState() === 'open') {
+                console.warn('DOM observer circuit breaker is open');
+            }
+
+        } catch (error) {
+            console.error('DOM observer health check failed:', error);
+        }
+    }
+
+    /**
+     * Enhanced observe content elements with error handling
+     */
+    private async observeContentElements(): Promise<void> {
+        if (!this.intersectionObserver) {
+            return;
+        }
+
+        try {
+            // Observe key content elements
+            const selectors = [
+                'h1, h2, h3, h4, h5, h6',
+                'p',
+                'article',
+                'section',
+                'main',
+                'nav',
+                'aside',
+                'form',
+                'table',
+                'img',
+                '[role="main"]',
+                '[role="article"]',
+                '[role="navigation"]'
+            ];
+
+            selectors.forEach(selector => {
+                try {
+                    document.querySelectorAll(selector).forEach(element => {
+                        if (this.intersectionObserver) {
+                            this.intersectionObserver.observe(element);
+                        }
+                    });
+                } catch (error) {
+                    console.warn(`Failed to observe elements with selector ${selector}:`, error);
+                }
+            });
+        } catch (error) {
+            console.warn('Failed to observe content elements:', error);
+        }
+    }
+
+    /**
+     * Enhanced cleanup observers with error handling
+     */
+    private async cleanupObservers(): Promise<void> {
+        const errors: Error[] = [];
+
+        try {
+            if (this.mutationObserver) {
+                this.mutationObserver.disconnect();
+                this.mutationObserver = null;
+            }
+        } catch (error) {
+            errors.push(new Error(`MutationObserver cleanup failed: ${error.message}`));
+        }
+
+        try {
+            if (this.intersectionObserver) {
+                this.intersectionObserver.disconnect();
+                this.intersectionObserver = null;
+            }
+        } catch (error) {
+            errors.push(new Error(`IntersectionObserver cleanup failed: ${error.message}`));
+        }
+
+        try {
+            if (this.resizeObserver) {
+                this.resizeObserver.disconnect();
+                this.resizeObserver = null;
+            }
+        } catch (error) {
+            errors.push(new Error(`ResizeObserver cleanup failed: ${error.message}`));
+        }
+
+        if (errors.length > 0) {
+            throw new Error(`Observer cleanup errors: ${errors.map(e => e.message).join(', ')}`);
+        }
+    }
+
+    /**
+     * Enhanced cleanup event listeners with error handling
+     */
+    private async cleanupEventListeners(): Promise<void> {
+        const errors: Error[] = [];
+
+        this.eventListeners.forEach((listener, eventType) => {
+            try {
+                document.removeEventListener(eventType, listener, true);
+            } catch (error) {
+                errors.push(new Error(`Failed to remove ${eventType} listener: ${error.message}`));
+            }
+        });
+
+        this.eventListeners.clear();
+
+        if (errors.length > 0) {
+            console.warn('Event listener cleanup errors:', errors);
+        }
+    }
+
+    /**
+     * Enhanced process pending changes with error handling
+     */
+    private processPendingChanges(): void {
+        if (this.pendingChanges.length === 0) {
+            return;
+        }
+
+        try {
+            const changes = [...this.pendingChanges];
+            this.pendingChanges = [];
+            this.processingTimer = null;
+            this.lastProcessTime = Date.now();
+
+            changes.forEach(mutation => {
+                try {
+                    this.processMutation(mutation);
+                } catch (error) {
+                    this.handleObserverError('Process mutation', error);
+                }
+            });
+
+            // Cleanup old changes
+            this.cleanupOldChanges();
+        } catch (error) {
+            this.handleObserverError('Process pending changes', error);
+        }
+    }
+
+    /**
+     * Enhanced update visible elements with error handling
+     */
+    private updateVisibleElements(entries: IntersectionObserverEntry[]): void {
+        try {
+            entries.forEach(entry => {
+                try {
+                    const element = entry.target;
+                    const elementInfo = this.getElementInfo(element);
+
+                    if (entry.isIntersecting) {
+                        // Add or update visible element
+                        const existingIndex = this.visibleElements.findIndex(
+                            ve => ve.selector === elementInfo.selector
+                        );
+
+                        const visibleElement: VisibleElement = {
+                            selector: elementInfo.selector,
+                            text: element.textContent?.trim() || '',
+                            bounds: entry.boundingClientRect,
+                            visibility: entry.intersectionRatio
+                        };
+
+                        if (existingIndex >= 0) {
+                            this.visibleElements[existingIndex] = visibleElement;
+                        } else {
+                            this.visibleElements.push(visibleElement);
+                        }
+                    } else {
+                        // Remove element from visible list
+                        this.visibleElements = this.visibleElements.filter(
+                            ve => ve.selector !== elementInfo.selector
+                        );
+                    }
+                } catch (error) {
+                    console.warn('Error processing intersection entry:', error);
+                }
+            });
+        } catch (error) {
+            this.handleObserverError('Update visible elements', error);
+        }
+    }
+
+    /**
+     * Sleep utility for delays
+     */
+    private sleep(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Setup performance monitoring callbacks
+     */
+    private setupPerformanceMonitoring(): void {
+        this.performanceMonitor.onPerformanceAlert(PerformanceAlertLevel.WARNING, (alert) => {
+            if (alert.component === 'DOMObserver') {
+                console.warn(`DOMObserver performance warning: ${alert.message}`);
+                this.adjustPerformanceSettings(alert);
+            }
+        });
+
+        this.performanceMonitor.onPerformanceAlert(PerformanceAlertLevel.CRITICAL, (alert) => {
+            if (alert.component === 'DOMObserver') {
+                console.error(`DOMObserver performance critical: ${alert.message}`);
+                this.handleCriticalPerformanceIssue(alert);
+            }
+        });
+    }
+
+    /**
+     * Adjust performance settings based on alerts
+     */
+    private adjustPerformanceSettings(alert: any): void {
+        switch (alert.metric) {
+            case 'responseTime':
+                // Increase throttle interval for mutation processing
+                this.dynamicThrottleInterval = Math.min(1000, this.dynamicThrottleInterval * 1.5);
+                break;
+            case 'memoryUsage':
+                // Reduce buffer sizes and cleanup old data
+                this.maxChanges = Math.max(100, this.maxChanges * 0.8);
+                this.maxInteractions = Math.max(50, this.maxInteractions * 0.8);
+                this.cleanupOldData();
+                break;
+        }
+    }
+
+    /**
+     * Handle critical performance issues
+     */
+    private async handleCriticalPerformanceIssue(alert: any): Promise<void> {
+        switch (alert.metric) {
+            case 'responseTime':
+                // Temporarily pause processing to recover
+                this.pauseObserving();
+                setTimeout(() => this.resumeObserving(), 3000);
+                break;
+            case 'memoryUsage':
+                // Aggressive cleanup
+                this.clearData();
+                this.performanceMonitor.triggerMemoryCleanup();
+                break;
+        }
+    }
+
+    /**
+     * Enhanced mutation processing with performance monitoring
+     */
+    @withPerformanceMonitoring('DOMObserver')
+    private async processPendingChangesWithMetrics(): Promise<void> {
+        if (this.pendingChanges.length === 0) {
+            return;
+        }
+
+        const operationId = `process_mutations_${Date.now()}`;
+        this.performanceMonitor.startTimer(operationId);
+
+        try {
+            // Check if we should throttle processing
+            if (this.performanceMonitor.shouldThrottle('DOMObserver')) {
+                const delay = this.performanceMonitor.getThrottleDelay('DOMObserver');
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+
+            const startTime = performance.now();
+
+            const changes = [...this.pendingChanges];
+            this.pendingChanges = [];
+            this.processingTimer = null;
+            this.lastProcessTime = Date.now();
+
+            changes.forEach(mutation => {
+                try {
+                    this.processMutation(mutation);
+                } catch (error) {
+                    this.handleObserverError('Process mutation', error);
+                }
+            });
+
+            // Cleanup old changes
+            this.cleanupOldChanges();
+
+            const processingTime = performance.now() - startTime;
+            this.mutationProcessingTime.push(processingTime);
+
+            // Keep only recent processing times
+            if (this.mutationProcessingTime.length > 100) {
+                this.mutationProcessingTime = this.mutationProcessingTime.slice(-50);
+            }
+
+            this.performanceMonitor.endTimer(operationId, 'DOMObserver', changes.length);
+        } catch (error) {
+            this.performanceMonitor.endTimer(operationId, 'DOMObserver', 0);
+            throw error;
+        }
+    }
+
+    /**
+     * Enhanced user interaction handling with performance monitoring
+     */
+    @withPerformanceMonitoring('DOMObserver')
+    private handleUserInteractionWithMetrics(event: Event): void {
+        const operationId = `handle_interaction_${Date.now()}`;
+        this.performanceMonitor.startTimer(operationId);
+
+        try {
+            const startTime = performance.now();
+
+            const target = event.target as Element;
+            if (!target || target.nodeType !== Node.ELEMENT_NODE) {
+                return;
+            }
+
+            const interactionType = this.getInteractionType(event.type);
+            if (!interactionType) {
+                return;
+            }
+
+            const elementInfo = this.getElementInfo(target);
+            const context = this.getInteractionContext(target, event);
+
+            const interaction: UserInteraction = {
+                type: interactionType,
+                element: elementInfo,
+                timestamp: new Date(),
+                context
+            };
+
+            this.trackedInteractions.push(interaction);
+
+            // Keep only recent interactions
+            if (this.trackedInteractions.length > this.maxInteractions) {
+                this.trackedInteractions = this.trackedInteractions.slice(-this.maxInteractions);
+            }
+
+            const processingTime = performance.now() - startTime;
+            this.interactionProcessingTime.push(processingTime);
+
+            // Keep only recent processing times
+            if (this.interactionProcessingTime.length > 100) {
+                this.interactionProcessingTime = this.interactionProcessingTime.slice(-50);
+            }
+
+            this.performanceMonitor.endTimer(operationId, 'DOMObserver', 1);
+        } catch (error) {
+            this.performanceMonitor.endTimer(operationId, 'DOMObserver', 0);
+            throw error;
+        }
+    }
+
+    /**
+     * Get performance statistics
+     */
+    getPerformanceStats(): {
+        componentStats: any;
+        systemStats: any;
+        recentAlerts: any[];
+        processingTimes: {
+            mutations: { average: number; max: number; min: number };
+            interactions: { average: number; max: number; min: number };
+        };
+        throttleInterval: number;
+        optimizationActions: any[];
+    } {
+        const mutationStats = this.calculateProcessingStats(this.mutationProcessingTime);
+        const interactionStats = this.calculateProcessingStats(this.interactionProcessingTime);
+
+        return {
+            componentStats: this.performanceMonitor.getComponentStats('DOMObserver'),
+            systemStats: this.performanceMonitor.getSystemStats(),
+            recentAlerts: this.performanceMonitor.getRecentAlerts(),
+            processingTimes: {
+                mutations: mutationStats,
+                interactions: interactionStats
+            },
+            throttleInterval: this.dynamicThrottleInterval,
+            optimizationActions: this.performanceMonitor.getOptimizationHistory()
+        };
+    }
+
+    /**
+     * Calculate processing time statistics
+     */
+    private calculateProcessingStats(times: number[]): { average: number; max: number; min: number } {
+        if (times.length === 0) {
+            return { average: 0, max: 0, min: 0 };
+        }
+
+        const sum = times.reduce((a, b) => a + b, 0);
+        return {
+            average: sum / times.length,
+            max: Math.max(...times),
+            min: Math.min(...times)
+        };
+    }
+
+    /**
+     * Optimize performance based on current metrics
+     */
+    optimizePerformance(): void {
+        const stats = this.performanceMonitor.getComponentStats('DOMObserver');
+        if (!stats) return;
+
+        // Adjust throttle interval based on processing times
+        const avgMutationTime = this.mutationProcessingTime.length > 0
+            ? this.mutationProcessingTime.reduce((a, b) => a + b, 0) / this.mutationProcessingTime.length
+            : 0;
+
+        if (avgMutationTime > 50) { // 50ms threshold
+            this.dynamicThrottleInterval = Math.min(1000, this.dynamicThrottleInterval * 1.2);
+        } else if (avgMutationTime < 10) { // 10ms threshold
+            this.dynamicThrottleInterval = Math.max(50, this.dynamicThrottleInterval * 0.9);
+        }
+
+        // Adjust buffer sizes based on memory usage
+        const memoryUsage = this.performanceMonitor.getCurrentMemoryUsage();
+        if (memoryUsage && memoryUsage.percentage > 70) {
+            this.maxChanges = Math.max(100, this.maxChanges * 0.9);
+            this.maxInteractions = Math.max(50, this.maxInteractions * 0.9);
+        }
+
+        // Clean up old data if performance is degrading
+        if (stats.averageResponseTime > 100) {
+            this.cleanupOldData();
+        }
+    }
+
+    /**
+     * Clean up old data to free memory
+     */
+    private cleanupOldData(): void {
+        const cutoff = Date.now() - 300000; // 5 minutes
+
+        // Clean up old changes
+        this.recentChanges = this.recentChanges.filter(
+            change => change.timestamp.getTime() > cutoff
+        );
+
+        // Clean up old interactions
+        this.trackedInteractions = this.trackedInteractions.filter(
+            interaction => interaction.timestamp.getTime() > cutoff
+        );
+
+        // Clean up processing time arrays
+        this.mutationProcessingTime = this.mutationProcessingTime.slice(-25);
+        this.interactionProcessingTime = this.interactionProcessingTime.slice(-25);
+    }
+
+    /**
+     * Enhanced health check with performance monitoring
+     */
+    private async performHealthCheck(): Promise<void> {
+        try {
+            this.lastHealthCheck = new Date();
+
+            if (!this.isObserving || this.isPaused) {
+                return;
+            }
+
+            // Existing health checks...
+            let observersHealthy = true;
+
+            if (this.mutationObserver) {
+                try {
+                    if (!document.body) {
+                        observersHealthy = false;
+                    }
+                } catch (error) {
+                    observersHealthy = false;
+                }
+            }
+
+            if (!observersHealthy) {
+                await this.errorHandler.handleError(
+                    ErrorCategory.DOM,
+                    ErrorSeverity.MEDIUM,
+                    'DOM observers appear to be disconnected, attempting recovery',
+                    'DOMObserver'
+                );
+                await this.recover();
+            }
+
+            // Performance health checks
+            const memoryUsage = this.performanceMonitor.getCurrentMemoryUsage();
+            if (memoryUsage && memoryUsage.percentage > 80) {
+                console.warn('High memory usage in DOMObserver, triggering cleanup');
+                this.cleanupOldData();
+                this.performanceMonitor.triggerMemoryCleanup();
+            }
+
+            // Optimize performance periodically
+            const timeSinceLastOptimization = Date.now() - this.lastPerformanceOptimization.getTime();
+            if (timeSinceLastOptimization > 60000) { // Every minute
+                this.optimizePerformance();
+                this.lastPerformanceOptimization = new Date();
+            }
+
+            // Reset error count if observing is stable
+            if (this.observerErrors > 0 && this.isObserving && !this.isPaused) {
+                this.observerErrors = Math.max(0, this.observerErrors - 1);
+            }
+
+            // Check circuit breaker state
+            if (this.circuitBreaker.getState() === 'open') {
+                console.warn('DOM observer circuit breaker is open');
+            }
+
+        } catch (error) {
+            console.error('DOM observer health check failed:', error);
+        }
+    }
+
+    /**
+     * Override the original processing method to use performance-monitored version
+     */
+    private scheduleProcessing(): void {
+        if (this.processingTimer) {
+            return;
+        }
+
+        const now = Date.now();
+        const timeSinceLastProcess = now - this.lastProcessTime;
+
+        if (timeSinceLastProcess >= this.dynamicThrottleInterval) {
+            this.processPendingChangesWithMetrics();
+        } else {
+            const delay = this.dynamicThrottleInterval - timeSinceLastProcess;
+            this.processingTimer = setTimeout(() => {
+                this.processPendingChangesWithMetrics();
+            }, delay);
+        }
+    }
+
+    /**
+     * Add event listener support for error notifications
+     */
+    addEventListener(event: string, callback: (data: any) => void): void {
+        // Implementation would depend on existing event system
+        // This is a placeholder for the interface
     }
 }

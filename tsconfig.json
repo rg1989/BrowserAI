@@ -18,6 +18,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "experimentalDecorators": true,
     "jsx": "react-jsx"
   },
   "include": [
@@ -33,6 +34,7 @@
     "**/__tests__/**",
     "**/*.test.*",
     "**/*.spec.*",
-    "src/setupTests.ts"
+    "src/setupTests.ts",
+    ".plasmo/**/*"
   ]
 }
