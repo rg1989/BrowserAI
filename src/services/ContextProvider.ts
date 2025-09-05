@@ -6,6 +6,8 @@ import {
   AIInsight,
   WorkflowRecommendation,
 } from "./SuggestionEngine";
+import { ContextFormatter, FormattedContext } from "./ContextFormatter";
+import { PageContext } from "../types/monitoring";
 
 /**
  * Context enhancement configuration for AI chat
