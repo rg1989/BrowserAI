@@ -31,7 +31,7 @@
   - Write tests for AI context integration
   - _Requirements: 1.4, 2.5, 6.1_
 
-- [ ] MVP-4. Create basic ContextualAIService orchestrator
+- [x] MVP-4. Create basic ContextualAIService orchestrator
 
   - Implement ContextualAIService class to combine context + AI
   - Add sendContextualMessage() method that injects page context
