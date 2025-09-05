@@ -14,7 +14,8 @@
       "48": "./gen-assets/icon48.plasmo.png",
       "64": "./gen-assets/icon64.plasmo.png",
       "128": "./gen-assets/icon128.plasmo.png"
-    }
+    },
+    "default_popup": "./popup.html"
   },
   "version": "1.0.0",
   "author": "",
@@ -26,7 +27,7 @@
         "<all_urls>"
       ],
       "js": [
-        "..\\src\\content.ts"
+        "../src/content.ts"
       ]
     }
   ]
