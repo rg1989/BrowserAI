@@ -179,7 +179,9 @@ describe("ContextFormatter", () => {
       expect(formatted.content.forms[0].action).toBe("/add-to-cart");
       expect(formatted.content.forms[0].method).toBe("POST");
       expect(formatted.content.forms[0].fieldCount).toBe(2);
-      expect(formatted.content.forms[0].fields).toContain("quantity (number)");
+      expect(formatted.content.forms[0].fields).toContain(
+        "quantity (number): 1"
+      );
     });
 
     it("should include table information", () => {
@@ -342,9 +344,7 @@ describe("ContextFormatter", () => {
 
       const formatted = formatter.formatForAI(mockPageContext);
 
-      expect(formatted.network.recentRequests[0].url).toContain(
-        "%5BREDACTED%5D"
-      );
+      expect(formatted.network.recentRequests[0].url).toContain("[REDACTED]");
       expect(formatted.network.recentRequests[0].url).not.toContain(
         "secret123"
       );

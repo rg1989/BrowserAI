@@ -8,6 +8,7 @@ import {
 } from "./SuggestionEngine";
 import { ContextFormatter, FormattedContext } from "./ContextFormatter";
 import { PageContext } from "../types/monitoring";
+import { PrivacyConfig } from "../types/privacy";
 
 /**
  * Context enhancement configuration for AI chat
@@ -80,6 +81,11 @@ export class ContextProvider {
   private contextCache: AggregatedContext | null = null;
   private cacheTimeout: number = 30000; // 30 seconds
   private suggestionEngine: SuggestionEngine;
+  private contextFormatter: ContextFormatter;
+  private privacyConfig: PrivacyConfig;
+  private aiFormattedContextCache: FormattedContext | null = null;
+  private aiContextCacheTimeout: number = 15000; // 15 seconds for AI context cache
+  private lastAIContextUpdate: number = 0;
 
   private constructor(config?: Partial<ContextEnhancementConfig>) {
     this.config = {
@@ -98,6 +104,42 @@ export class ContextProvider {
       ...config,
     };
     this.suggestionEngine = SuggestionEngine.getInstance();
+    this.contextFormatter = new ContextFormatter();
+
+    // Initialize privacy config with sensible defaults
+    this.privacyConfig = {
+      excludedDomains: [
+        "banking.com",
+        "paypal.com",
+        "stripe.com",
+        "login.microsoftonline.com",
+        "accounts.google.com",
+        "auth0.com",
+        "okta.com",
+      ],
+      excludedPaths: [
+        "/login",
+        "/signin",
+        "/signup",
+        "/register",
+        "/password",
+        "/payment",
+        "/checkout",
+        "/billing",
+      ],
+      redactSensitiveData: true,
+      sensitiveDataPatterns: [
+        /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/, // Credit card numbers
+        /\b\d{3}-\d{2}-\d{4}\b/, // SSN
+        /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/, // Email addresses
+        /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/, // Phone numbers
+      ],
+      dataRetentionDays: 7,
+      enableDataExport: false,
+      enableDataDeletion: true,
+      requireExplicitConsent: false,
+      consentRenewalDays: 365,
+    };
   }
 
   /**
@@ -165,6 +207,127 @@ export class ContextProvider {
       console.error("Failed to get current context:", error);
       return null;
     }
+  }
+
+  /**
+   * Get AI-formatted context with privacy filtering and caching
+   * This is the main method for AI integration
+   */
+  async getAIFormattedContext(
+    query?: string,
+    maxTokens: number = 1000
+  ): Promise<FormattedContext | null> {
+    if (!this.isReady()) {
+      console.warn("ContextProvider not ready - page monitoring not active");
+      return null;
+    }
+
+    try {
+      // Check AI context cache first
+      if (this.isAIContextCacheValid() && !query) {
+        return this.aiFormattedContextCache;
+      }
+
+      // Get current aggregated context
+      const aggregatedContext = await this.getCurrentContext();
+      if (!aggregatedContext) {
+        return null;
+      }
+
+      // Convert to PageContext for formatter (extract from aggregated context)
+      const pageContext =
+        this.extractPageContextFromAggregated(aggregatedContext);
+
+      // Apply privacy filtering
+      const filteredContext = this.applyPrivacyFiltering(pageContext);
+
+      // Format for AI consumption
+      const formattedContext = this.contextFormatter.formatForAI(
+        filteredContext,
+        query,
+        maxTokens
+      );
+
+      // Cache the result if no specific query (general context)
+      if (!query) {
+        this.aiFormattedContextCache = formattedContext;
+        this.lastAIContextUpdate = Date.now();
+      }
+
+      return formattedContext;
+    } catch (error) {
+      console.error("Failed to get AI formatted context:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get context summary for AI with privacy filtering
+   */
+  async getAIContextSummary(maxTokens: number = 200): Promise<string> {
+    const formattedContext = await this.getAIFormattedContext(
+      undefined,
+      maxTokens
+    );
+
+    if (!formattedContext) {
+      return "No page context available";
+    }
+
+    return formattedContext.summary;
+  }
+
+  /**
+   * Check if current domain should be excluded from context collection
+   */
+  isDomainExcluded(url?: string): boolean {
+    const currentUrl = url || window.location.href;
+
+    try {
+      const urlObj = new URL(currentUrl);
+      const domain = urlObj.hostname.toLowerCase();
+      const path = urlObj.pathname.toLowerCase();
+
+      // Check excluded domains
+      const isExcludedDomain = this.privacyConfig.excludedDomains.some(
+        (excludedDomain) => domain.includes(excludedDomain.toLowerCase())
+      );
+
+      // Check excluded paths
+      const isExcludedPath = this.privacyConfig.excludedPaths.some(
+        (excludedPath) => path.includes(excludedPath.toLowerCase())
+      );
+
+      return isExcludedDomain || isExcludedPath;
+    } catch (error) {
+      console.warn("Failed to parse URL for privacy check:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Update privacy configuration
+   */
+  updatePrivacyConfig(newConfig: Partial<PrivacyConfig>): void {
+    this.privacyConfig = { ...this.privacyConfig, ...newConfig };
+
+    // Clear AI context cache when privacy settings change
+    this.clearAIContextCache();
+  }
+
+  /**
+   * Get current privacy configuration
+   */
+  getPrivacyConfig(): PrivacyConfig {
+    return { ...this.privacyConfig };
+  }
+
+  /**
+   * Clear AI context cache (public method for testing)
+   */
+  clearAIContextCache(): void {
+    this.aiFormattedContextCache = null;
+    this.lastAIContextUpdate = 0;
   }
 
   /**
@@ -399,6 +562,7 @@ export class ContextProvider {
   clearCache(): void {
     this.contextCache = null;
     this.lastContextUpdate = 0;
+    this.clearAIContextCache();
   }
 
   /**
@@ -564,5 +728,166 @@ export class ContextProvider {
         : contextString;
 
     return `Context: ${truncatedContext}\n\nUser question: ${originalMessage}`;
+  }
+
+  /**
+   * Check if AI context cache is still valid
+   */
+  private isAIContextCacheValid(): boolean {
+    return (
+      this.aiFormattedContextCache !== null &&
+      Date.now() - this.lastAIContextUpdate < this.aiContextCacheTimeout
+    );
+  }
+
+  /**
+   * Extract PageContext from AggregatedContext for formatter
+   */
+  private extractPageContextFromAggregated(
+    aggregated: AggregatedContext
+  ): PageContext {
+    return {
+      url: aggregated.metadata.url,
+      title: aggregated.metadata.title,
+      timestamp: aggregated.metadata.timestamp,
+      content: aggregated.content,
+      layout: {
+        viewport: {
+          width: 0,
+          height: 0,
+          scrollX: 0,
+          scrollY: 0,
+          devicePixelRatio: 1,
+        },
+        visibleElements: [],
+        scrollPosition: { x: 0, y: 0, maxX: 0, maxY: 0 },
+        modals: [],
+        overlays: [],
+      },
+      network: aggregated.network || {
+        recentRequests: [],
+        totalRequests: 0,
+        totalDataTransferred: 0,
+        averageResponseTime: 0,
+      },
+      interactions: [],
+      metadata: {
+        userAgent: navigator.userAgent,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        scrollPosition: { x: window.scrollX, y: window.scrollY },
+      },
+      semantics: aggregated.semantics,
+    };
+  }
+
+  /**
+   * Apply privacy filtering to context data
+   */
+  private applyPrivacyFiltering(context: PageContext): PageContext {
+    // Check if current domain/path should be excluded
+    if (this.isDomainExcluded(context.url)) {
+      // Return minimal context for excluded domains
+      return {
+        ...context,
+        content: {
+          ...context.content,
+          text: "[Content filtered for privacy]",
+          forms: [],
+          tables: [],
+        },
+        network: {
+          ...context.network,
+          recentRequests: [],
+        },
+        interactions: [],
+      };
+    }
+
+    // Apply data redaction if enabled
+    if (this.privacyConfig.redactSensitiveData) {
+      return this.redactSensitiveData(context);
+    }
+
+    return context;
+  }
+
+  /**
+   * Redact sensitive data from context using configured patterns
+   */
+  private redactSensitiveData(context: PageContext): PageContext {
+    const redactedContext = { ...context };
+
+    // Redact sensitive data from text content
+    if (redactedContext.content.text) {
+      let redactedText = redactedContext.content.text;
+
+      this.privacyConfig.sensitiveDataPatterns.forEach((pattern) => {
+        redactedText = redactedText.replace(pattern, "[REDACTED]");
+      });
+
+      redactedContext.content = {
+        ...redactedContext.content,
+        text: redactedText,
+      };
+    }
+
+    // Redact sensitive data from form fields
+    if (redactedContext.content.forms) {
+      redactedContext.content.forms = redactedContext.content.forms.map(
+        (form) => ({
+          ...form,
+          fields: form.fields.map((field) => {
+            // Redact values from sensitive field types
+            const sensitiveFieldTypes = ["password", "email", "tel", "number"];
+            if (
+              sensitiveFieldTypes.includes(field.type.toLowerCase()) &&
+              field.value
+            ) {
+              return { ...field, value: "[REDACTED]" };
+            }
+            return field;
+          }),
+        })
+      );
+    }
+
+    // Redact sensitive data from network requests
+    if (redactedContext.network.recentRequests) {
+      redactedContext.network.recentRequests =
+        redactedContext.network.recentRequests.map((request: any) => {
+          let redactedUrl = request.url;
+
+          // Redact sensitive URL parameters
+          try {
+            const url = new URL(redactedUrl);
+            const sensitiveParams = [
+              "token",
+              "key",
+              "password",
+              "secret",
+              "auth",
+              "session",
+              "api_key",
+            ];
+
+            sensitiveParams.forEach((param) => {
+              if (url.searchParams.has(param)) {
+                url.searchParams.set(param, "[REDACTED]");
+              }
+            });
+
+            redactedUrl = url.toString();
+          } catch (error) {
+            // If URL parsing fails, leave as is
+          }
+
+          return {
+            ...request,
+            url: redactedUrl,
+          };
+        });
+    }
+
+    return redactedContext;
   }
 }

@@ -81,7 +81,7 @@ export class ContextFormatter {
   private readonly MAX_CONTENT_LENGTH = 2000;
   private readonly MAX_NETWORK_REQUESTS = 10;
   private readonly MAX_INTERACTIONS = 5;
-  private readonly CHARS_PER_TOKEN = 4; // Rough estimation
+  private readonly CHARS_PER_TOKEN = 3; // More conservative estimation
 
   /**
    * Format PageContext for AI consumption with optional query-specific prioritization
@@ -154,7 +154,11 @@ export class ContextFormatter {
           action: form.action,
           method: form.method,
           fieldCount: form.fields.length,
-          fields: form.fields.map((field) => `${field.name} (${field.type})`),
+          fields: form.fields.map((field) =>
+            field.value
+              ? `${field.name} (${field.type}): ${field.value}`
+              : `${field.name} (${field.type})`
+          ),
         })) || [],
       tables:
         content.tables?.map((table) => ({
@@ -305,7 +309,10 @@ export class ContextFormatter {
    */
   private sanitizeUrl(url: string): string {
     try {
-      const urlObj = new URL(url);
+      // Handle relative URLs by providing a base URL
+      const urlObj = url.startsWith("http")
+        ? new URL(url)
+        : new URL(url, "https://example.com");
 
       // Remove sensitive parameters
       const sensitiveParams = [
@@ -316,13 +323,27 @@ export class ContextFormatter {
         "auth",
         "session",
       ];
-      sensitiveParams.forEach((param) => {
-        if (urlObj.searchParams.has(param)) {
-          urlObj.searchParams.set(param, "[REDACTED]");
-        }
-      });
 
-      return urlObj.toString();
+      // Check each URL parameter against sensitive patterns
+      for (const [paramName, paramValue] of urlObj.searchParams.entries()) {
+        const lowerParamName = paramName.toLowerCase();
+        const shouldRedact = sensitiveParams.some((sensitiveParam) =>
+          lowerParamName.includes(sensitiveParam.toLowerCase())
+        );
+
+        if (shouldRedact) {
+          urlObj.searchParams.set(paramName, "[REDACTED]");
+        }
+      }
+
+      // Return relative URL if it was originally relative
+      if (!url.startsWith("http")) {
+        return decodeURIComponent(
+          urlObj.pathname + urlObj.search + urlObj.hash
+        );
+      }
+
+      return decodeURIComponent(urlObj.toString());
     } catch {
       return url;
     }
@@ -433,50 +454,89 @@ export class ContextFormatter {
       this.estimateTokenCount(trimmed) > maxTokens &&
       iterations < maxIterations
     ) {
-      // First, aggressively trim content
-      if (trimmed.content.mainContent.length > 200) {
-        trimmed.content.mainContent =
-          trimmed.content.mainContent.substring(0, 200) + "...";
-      }
+      // For very small token limits, be very aggressive
+      if (maxTokens <= 100) {
+        // Drastically reduce content
+        if (trimmed.content.mainContent.length > 30) {
+          trimmed.content.mainContent =
+            trimmed.content.mainContent.substring(0, 30) + "...";
+        }
 
-      // Then trim network requests
-      if (trimmed.network.recentRequests.length > 3) {
-        trimmed.network.recentRequests = trimmed.network.recentRequests.slice(
-          0,
-          3
-        );
-      }
-
-      // Then trim interactions
-      if (trimmed.interactions.recentActions.length > 1) {
-        trimmed.interactions.recentActions =
-          trimmed.interactions.recentActions.slice(0, 1);
-      }
-
-      // Trim links and tables
-      if (trimmed.content.links.length > 2) {
-        trimmed.content.links = trimmed.content.links.slice(0, 2);
-      }
-
-      if (trimmed.content.tables.length > 0) {
+        // Remove most optional content
+        trimmed.network.recentRequests = [];
+        trimmed.interactions.recentActions = [];
+        trimmed.content.links = [];
         trimmed.content.tables = [];
-      }
+        trimmed.content.forms = [];
 
-      // If still too large, trim forms
-      if (
-        this.estimateTokenCount(trimmed) > maxTokens &&
-        trimmed.content.forms.length > 0
-      ) {
-        trimmed.content.forms = trimmed.content.forms.slice(0, 1);
-      }
+        // Trim summary aggressively
+        if (trimmed.summary.length > 25) {
+          trimmed.summary = trimmed.summary.substring(0, 25) + "...";
+        }
 
-      // Final aggressive trim - reduce content further
-      if (
-        this.estimateTokenCount(trimmed) > maxTokens &&
-        trimmed.content.mainContent.length > 100
-      ) {
-        trimmed.content.mainContent =
-          trimmed.content.mainContent.substring(0, 100) + "...";
+        // Trim metadata
+        trimmed.metadata.technologies = [];
+        if (
+          trimmed.metadata.semanticData.description &&
+          trimmed.metadata.semanticData.description.length > 20
+        ) {
+          trimmed.metadata.semanticData.description =
+            trimmed.metadata.semanticData.description.substring(0, 20) + "...";
+        }
+      } else {
+        // Normal trimming for larger token limits
+        if (trimmed.content.mainContent.length > 200) {
+          trimmed.content.mainContent =
+            trimmed.content.mainContent.substring(0, 200) + "...";
+        }
+
+        // Then trim network requests
+        if (trimmed.network.recentRequests.length > 3) {
+          trimmed.network.recentRequests = trimmed.network.recentRequests.slice(
+            0,
+            3
+          );
+        }
+
+        // Then trim interactions
+        if (trimmed.interactions.recentActions.length > 1) {
+          trimmed.interactions.recentActions =
+            trimmed.interactions.recentActions.slice(0, 1);
+        }
+
+        // Trim links and tables
+        if (trimmed.content.links.length > 2) {
+          trimmed.content.links = trimmed.content.links.slice(0, 2);
+        }
+
+        if (trimmed.content.tables.length > 0) {
+          trimmed.content.tables = [];
+        }
+
+        // If still too large, trim forms
+        if (
+          this.estimateTokenCount(trimmed) > maxTokens &&
+          trimmed.content.forms.length > 0
+        ) {
+          trimmed.content.forms = trimmed.content.forms.slice(0, 1);
+        }
+
+        // Final aggressive trim - reduce content further
+        if (
+          this.estimateTokenCount(trimmed) > maxTokens &&
+          trimmed.content.mainContent.length > 100
+        ) {
+          trimmed.content.mainContent =
+            trimmed.content.mainContent.substring(0, 100) + "...";
+        }
+
+        // If still too large, trim summary
+        if (
+          this.estimateTokenCount(trimmed) > maxTokens &&
+          trimmed.summary.length > 100
+        ) {
+          trimmed.summary = trimmed.summary.substring(0, 100) + "...";
+        }
       }
 
       iterations++;

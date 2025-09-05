@@ -2,6 +2,7 @@ import { ContextProvider, SuggestionType } from "../ContextProvider";
 import { PageContextMonitor } from "../PageContextMonitor";
 import { AggregatedContext } from "../ContextAggregator";
 import { ChatMessage } from "../../types/workflow";
+import { PrivacyConfig } from "../../types/privacy";
 
 // Mock PageContextMonitor
 jest.mock("../PageContextMonitor");
@@ -378,6 +379,356 @@ describe("ContextProvider", () => {
       contextProvider.clearCache();
       // Cache should be cleared - next call should fetch fresh data
       // This is tested indirectly through the caching behavior test above
+    });
+  });
+
+  describe("AI integration", () => {
+    beforeEach(() => {
+      contextProvider.initialize(mockPageContextMonitor);
+    });
+
+    describe("getAIFormattedContext", () => {
+      it("should return formatted context for AI consumption", async () => {
+        const formattedContext = await contextProvider.getAIFormattedContext();
+
+        expect(formattedContext).toBeDefined();
+        expect(formattedContext?.summary).toContain("Web Development Guide");
+        expect(formattedContext?.content.title).toBe("Web Development Guide");
+        expect(formattedContext?.content.url).toBe("https://example.com/guide");
+        expect(formattedContext?.tokenCount).toBeGreaterThan(0);
+      });
+
+      it("should return null when not ready", async () => {
+        mockPageContextMonitor.isActive.mockReturnValue(false);
+
+        const formattedContext = await contextProvider.getAIFormattedContext();
+        expect(formattedContext).toBeNull();
+      });
+
+      it("should cache AI formatted context for performance", async () => {
+        // First call
+        await contextProvider.getAIFormattedContext();
+        // Second call should use cache
+        await contextProvider.getAIFormattedContext();
+
+        // Should only call getContext once due to caching
+        expect(mockPageContextMonitor.getContext).toHaveBeenCalledTimes(1);
+      });
+
+      it("should respect maxTokens parameter", async () => {
+        const formattedContext = await contextProvider.getAIFormattedContext(
+          undefined,
+          100
+        );
+
+        expect(formattedContext).toBeDefined();
+        expect(formattedContext?.tokenCount).toBeLessThanOrEqual(100);
+      });
+
+      it("should handle query-specific formatting", async () => {
+        const query = "What forms are on this page?";
+        const formattedContext = await contextProvider.getAIFormattedContext(
+          query
+        );
+
+        expect(formattedContext).toBeDefined();
+        // Query-specific context should not be cached
+        expect(formattedContext?.content.forms).toBeDefined();
+      });
+
+      it("should handle errors gracefully", async () => {
+        mockPageContextMonitor.getContext.mockRejectedValue(
+          new Error("Network error")
+        );
+
+        const formattedContext = await contextProvider.getAIFormattedContext();
+        expect(formattedContext).toBeNull();
+      });
+    });
+
+    describe("getAIContextSummary", () => {
+      it("should return context summary for AI", async () => {
+        const summary = await contextProvider.getAIContextSummary();
+
+        expect(summary).toContain("Web Development Guide");
+        expect(summary).toContain("https://example.com/guide");
+      });
+
+      it("should return fallback message when no context", async () => {
+        mockPageContextMonitor.isActive.mockReturnValue(false);
+
+        const summary = await contextProvider.getAIContextSummary();
+        expect(summary).toBe("No page context available");
+      });
+
+      it("should respect maxTokens parameter", async () => {
+        const summary = await contextProvider.getAIContextSummary(50);
+
+        // Summary should be reasonably short for 50 tokens
+        expect(summary.length).toBeLessThan(200); // Rough estimation
+      });
+    });
+  });
+
+  describe("privacy filtering", () => {
+    beforeEach(() => {
+      contextProvider.initialize(mockPageContextMonitor);
+    });
+
+    describe("isDomainExcluded", () => {
+      it("should exclude sensitive domains", () => {
+        expect(
+          contextProvider.isDomainExcluded("https://banking.com/account")
+        ).toBe(true);
+        expect(
+          contextProvider.isDomainExcluded("https://paypal.com/login")
+        ).toBe(true);
+        expect(
+          contextProvider.isDomainExcluded("https://accounts.google.com/signin")
+        ).toBe(true);
+      });
+
+      it("should exclude sensitive paths", () => {
+        expect(
+          contextProvider.isDomainExcluded("https://example.com/login")
+        ).toBe(true);
+        expect(
+          contextProvider.isDomainExcluded("https://example.com/payment")
+        ).toBe(true);
+        expect(
+          contextProvider.isDomainExcluded("https://example.com/checkout")
+        ).toBe(true);
+      });
+
+      it("should allow safe domains and paths", () => {
+        expect(
+          contextProvider.isDomainExcluded("https://example.com/guide")
+        ).toBe(false);
+        expect(
+          contextProvider.isDomainExcluded("https://docs.example.com/api")
+        ).toBe(false);
+        expect(
+          contextProvider.isDomainExcluded("https://blog.example.com/article")
+        ).toBe(false);
+      });
+
+      it("should handle invalid URLs gracefully", () => {
+        expect(contextProvider.isDomainExcluded("invalid-url")).toBe(false);
+      });
+    });
+
+    describe("updatePrivacyConfig", () => {
+      it("should update privacy configuration", () => {
+        const newConfig: Partial<PrivacyConfig> = {
+          excludedDomains: ["test.com"],
+          redactSensitiveData: false,
+        };
+
+        contextProvider.updatePrivacyConfig(newConfig);
+        const config = contextProvider.getPrivacyConfig();
+
+        expect(config.excludedDomains).toContain("test.com");
+        expect(config.redactSensitiveData).toBe(false);
+      });
+
+      it("should clear AI context cache when privacy settings change", () => {
+        const clearCacheSpy = jest.spyOn(
+          contextProvider,
+          "clearAIContextCache"
+        );
+
+        contextProvider.updatePrivacyConfig({ redactSensitiveData: false });
+        expect(clearCacheSpy).toHaveBeenCalled();
+      });
+    });
+
+    describe("privacy filtering in AI context", () => {
+      it("should filter content for excluded domains", async () => {
+        // Mock context from excluded domain
+        const excludedContext = {
+          ...mockContext,
+          metadata: {
+            ...mockContext.metadata,
+            url: "https://banking.com/account",
+          },
+        };
+        mockPageContextMonitor.getContext.mockResolvedValue(excludedContext);
+
+        const formattedContext = await contextProvider.getAIFormattedContext();
+
+        expect(formattedContext?.content.mainContent).toBe(
+          "[Content filtered for privacy]"
+        );
+        expect(formattedContext?.content.forms).toEqual([]);
+        expect(formattedContext?.network.recentRequests).toEqual([]);
+      });
+
+      it("should redact sensitive data when enabled", async () => {
+        // Create context with sensitive data
+        const sensitiveContext = {
+          ...mockContext,
+          content: {
+            ...mockContext.content,
+            text: "Contact us at john.doe@example.com or call 555-123-4567. Credit card: 4111-1111-1111-1111",
+            forms: [
+              {
+                action: "/contact",
+                method: "POST",
+                fields: [
+                  {
+                    name: "email",
+                    type: "email",
+                    value: "user@example.com",
+                    required: true,
+                  },
+                  {
+                    name: "password",
+                    type: "password",
+                    value: "secret123",
+                    required: true,
+                  },
+                ],
+                element: { tagName: "form", selector: "form" },
+              },
+            ],
+          },
+          network: {
+            recentRequests: [
+              {
+                id: "1",
+                url: "/api/login?token=abc123&secret=xyz789",
+                method: "POST",
+                status: 200,
+                timestamp: Date.now(),
+              },
+            ],
+            totalRequests: 5,
+            totalDataTransferred: 1024,
+            averageResponseTime: 150,
+          },
+        };
+        mockPageContextMonitor.getContext.mockResolvedValue(sensitiveContext);
+
+        const formattedContext = await contextProvider.getAIFormattedContext();
+
+        // Check that sensitive data is redacted
+        expect(formattedContext?.content.mainContent).toContain("[REDACTED]");
+        expect(formattedContext?.content.mainContent).not.toContain(
+          "john.doe@example.com"
+        );
+        expect(formattedContext?.content.mainContent).not.toContain(
+          "555-123-4567"
+        );
+        expect(formattedContext?.content.mainContent).not.toContain(
+          "4111-1111-1111-1111"
+        );
+      });
+
+      it("should redact sensitive form field values", async () => {
+        const sensitiveContext = {
+          ...mockContext,
+          content: {
+            ...mockContext.content,
+            forms: [
+              {
+                action: "/login",
+                method: "POST",
+                fields: [
+                  {
+                    name: "email",
+                    type: "email",
+                    value: "user@example.com",
+                    required: true,
+                  },
+                  {
+                    name: "password",
+                    type: "password",
+                    value: "secret123",
+                    required: true,
+                  },
+                  {
+                    name: "name",
+                    type: "text",
+                    value: "John Doe",
+                    required: false,
+                  },
+                ],
+                element: { tagName: "form", selector: "form" },
+              },
+            ],
+          },
+        };
+        mockPageContextMonitor.getContext.mockResolvedValue(sensitiveContext);
+
+        const formattedContext = await contextProvider.getAIFormattedContext();
+
+        const emailField = formattedContext?.content.forms[0]?.fields.find(
+          (f) => f.includes("email")
+        );
+        const passwordField = formattedContext?.content.forms[0]?.fields.find(
+          (f) => f.includes("password")
+        );
+        const nameField = formattedContext?.content.forms[0]?.fields.find((f) =>
+          f.includes("name")
+        );
+
+        // Sensitive fields should be redacted
+        expect(emailField).toContain("[REDACTED]");
+        expect(passwordField).toContain("[REDACTED]");
+        // Non-sensitive fields should not be redacted
+        expect(nameField).toContain("John Doe");
+      });
+
+      it("should redact sensitive URL parameters", async () => {
+        const sensitiveContext = {
+          ...mockContext,
+          network: {
+            recentRequests: [
+              {
+                id: "1",
+                url: "/api/data?token=secret123&api_key=xyz789&user=john",
+                method: "GET",
+                status: 200,
+                timestamp: Date.now(),
+              },
+            ],
+            totalRequests: 5,
+            totalDataTransferred: 1024,
+            averageResponseTime: 150,
+          },
+        };
+        mockPageContextMonitor.getContext.mockResolvedValue(sensitiveContext);
+
+        const formattedContext = await contextProvider.getAIFormattedContext();
+
+        const request = formattedContext?.network.recentRequests[0];
+        expect(request?.url).toContain("[REDACTED]");
+        expect(request?.url).not.toContain("secret123");
+        expect(request?.url).not.toContain("xyz789");
+        // Non-sensitive parameters should remain
+        expect(request?.url).toContain("user=john");
+      });
+    });
+  });
+
+  describe("cache management", () => {
+    beforeEach(() => {
+      contextProvider.initialize(mockPageContextMonitor);
+    });
+
+    it("should clear both caches", () => {
+      const clearAICacheSpy = jest.spyOn(
+        contextProvider,
+        "clearAIContextCache"
+      );
+
+      contextProvider.clearCache();
+      expect(clearAICacheSpy).toHaveBeenCalled();
+    });
+
+    it("should clear AI context cache independently", () => {
+      contextProvider.clearAIContextCache();
+      // This is tested indirectly through the caching behavior tests
     });
   });
 

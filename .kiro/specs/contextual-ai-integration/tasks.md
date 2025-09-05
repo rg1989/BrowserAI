@@ -22,7 +22,7 @@
   - Write unit tests for context formatting
   - _Requirements: 1.1, 1.2, 8.1_
 
-- [ ] MVP-3. Enhance ContextProvider for AI integration
+- [x] MVP-3. Enhance ContextProvider for AI integration
 
   - Extend existing ContextProvider with getAIFormattedContext() method
   - Add basic privacy filtering (exclude sensitive domains)
