@@ -39,5 +39,30 @@
     "jest-environment-jsdom": "^30.1.2",
     "ts-jest": "^29.4.1",
     "typescript": "5.3.3"
+  },
+  "manifest": {
+    "permissions": [
+      "storage",
+      "webRequest",
+      "webNavigation",
+      "tabs",
+      "activeTab",
+      "scripting"
+    ],
+    "host_permissions": [
+      "<all_urls>"
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": [
+          "*.js",
+          "*.css",
+          "*.html"
+        ],
+        "matches": [
+          "<all_urls>"
+        ]
+      }
+    ]
   }
 }

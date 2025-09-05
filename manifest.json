@@ -14,7 +14,8 @@
       "48": "icon48.plasmo.b88acab9.png",
       "64": "icon64.plasmo.66d21e94.png",
       "128": "icon128.plasmo.ef13585c.png"
-    }
+    },
+    "default_popup": "popup.html"
   },
   "version": "1.0.0",
   "author": "",
@@ -25,14 +26,39 @@
     "webRequest",
     "webNavigation",
     "tabs",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.dbcead7d.js"],
-      "css": ["content.c21e907f.css"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.dbcead7d.js"
+      ],
+      "css": [
+        "content.c21e907f.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "*.js",
+        "*.css",
+        "*.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

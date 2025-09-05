@@ -7,7 +7,7 @@ describe('NetworkMonitor - Basic Functionality', () => {
     let networkMonitor: NetworkMonitor;
     let privacyController: PrivacyController;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         const mockPrivacyConfig: PrivacyConfig = {
             excludedDomains: [],
             excludedPaths: [],
@@ -17,9 +17,9 @@ describe('NetworkMonitor - Basic Functionality', () => {
         };
 
         privacyController = new PrivacyController(mockPrivacyConfig);
-        privacyController.setConsent(true);
+        await privacyController.grantFullConsent();
 
-        // Mock methods
+        // Mock methods that exist on PrivacyController
         jest.spyOn(privacyController, 'shouldMonitorUrl').mockReturnValue(true);
         jest.spyOn(privacyController, 'sanitizeNetworkData').mockImplementation(data => data);
         jest.spyOn(privacyController, 'logDataCollection').mockImplementation(() => { });
@@ -28,7 +28,9 @@ describe('NetworkMonitor - Basic Functionality', () => {
     });
 
     afterEach(() => {
-        networkMonitor.stopMonitoring();
+        if (networkMonitor) {
+            networkMonitor.stopMonitoring();
+        }
         jest.clearAllMocks();
     });
 

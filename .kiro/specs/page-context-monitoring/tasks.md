@@ -169,8 +169,15 @@
   - Write performance tests and optimization validation
   - _Requirements: 6.1, 6.3, 6.4, 6.5_
 
-- [ ] 11. Update manifest and permissions for monitoring features
-- [ ] 11.1 Update extension manifest for required permissions
+- [x] 11. Update manifest and permissions for monitoring features
+
+
+
+
+- [x] 11.1 Update extension manifest for required permissions
+
+
+
 
   - Add webRequest, webNavigation, and storage permissions
   - Update host_permissions for all_urls access
@@ -178,7 +185,9 @@
   - Test manifest changes and permission requests
   - _Requirements: 2.1, 2.2, 4.1, 8.1_
 
-- [ ] 11.2 Implement privacy compliance and user consent
+- [x] 11.2 Implement privacy compliance and user consent
+
+
 
   - Create privacy disclosure and consent mechanisms
   - Add data retention and cleanup policies

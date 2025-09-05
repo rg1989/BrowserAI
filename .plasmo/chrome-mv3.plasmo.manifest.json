@@ -19,11 +19,19 @@
   },
   "version": "1.0.0",
   "author": "",
-  "name": "Spotlight Browser Extension",
+  "name": "DEV | Spotlight Browser Extension",
   "description": "A Spotlight-like browser extension with configurable workflows",
   "background": {
     "service_worker": "./static/background/index.ts"
   },
+  "permissions": [
+    "storage",
+    "webRequest",
+    "webNavigation",
+    "tabs",
+    "activeTab",
+    "scripting"
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -31,6 +39,21 @@
       ],
       "js": [
         "..\\src\\content.ts"
+      ]
+    }
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "*.js",
+        "*.css",
+        "*.html"
+      ],
+      "matches": [
+        "<all_urls>"
       ]
     }
   ]
