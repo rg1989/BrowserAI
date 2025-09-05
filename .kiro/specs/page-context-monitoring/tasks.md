@@ -109,8 +109,8 @@
   - Write unit tests for settings management and privacy controls
   - _Requirements: 8.4, 8.6, 5.1, 5.2_
 
-- [ ] 8. Integrate monitoring system with existing content script
-- [ ] 8.1 Modify content script to initialize monitoring
+- [x] 8. Integrate monitoring system with existing content script
+- [x] 8.1 Modify content script to initialize monitoring
 
   - Update ContentScript class to initialize PageContextMonitor
   - Add monitoring enable/disable based on extension settings
@@ -118,7 +118,7 @@
   - Write integration tests for content script monitoring initialization
   - _Requirements: 1.1, 8.7, 6.1_
 
-- [ ] 8.2 Create background script for network interception
+- [x] 8.2 Create background script for network interception
 
   - Implement background service worker with webRequest API
   - Create message passing between background and content scripts

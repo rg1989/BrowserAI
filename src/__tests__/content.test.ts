@@ -25,6 +25,10 @@ jest.mock("../components/SpotlightOverlay", () => ({
 // Mock KeyboardManager
 jest.mock("../services/KeyboardManager");
 
+// Mock monitoring services
+jest.mock("../services/PageContextMonitor");
+jest.mock("../services/MonitoringConfig");
+
 describe("ContentScript", () => {
   let mockKeyboardManager: jest.Mocked<KeyboardManager>;
   let originalConsoleLog: typeof console.log;
@@ -36,6 +40,26 @@ describe("ContentScript", () => {
     originalConsoleError = console.error;
     console.log = jest.fn();
     console.error = jest.fn();
+    console.warn = jest.fn();
+
+    // Mock Chrome APIs
+    global.chrome = {
+      storage: {
+        sync: {
+          get: jest.fn().mockResolvedValue({}),
+          set: jest.fn().mockResolvedValue(undefined),
+        },
+        onChanged: {
+          addListener: jest.fn(),
+          removeListener: jest.fn(),
+        },
+      },
+      runtime: {
+        onMessage: {
+          addListener: jest.fn(),
+        },
+      },
+    } as any;
 
     // Setup KeyboardManager mock
     mockKeyboardManager = {
@@ -71,8 +95,11 @@ describe("ContentScript", () => {
   });
 
   describe("Initialization", () => {
-    it("should initialize content script successfully", () => {
+    it("should initialize content script successfully", async () => {
       const contentScript = new (ContentScript as any)();
+
+      // Wait for async initialization to complete
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(KeyboardManager.getInstance).toHaveBeenCalled();
       expect(mockKeyboardManager.onToggleOverlay).toHaveBeenCalled();
@@ -341,7 +368,7 @@ describe("ContentScript", () => {
       addEventListenerSpy.mockRestore();
     });
 
-    it("should initialize immediately if DOM is ready", () => {
+    it("should initialize immediately if DOM is ready", async () => {
       // Mock document.readyState as complete
       Object.defineProperty(document, "readyState", {
         value: "complete",
@@ -349,6 +376,9 @@ describe("ContentScript", () => {
       });
 
       new (ContentScript as any)();
+
+      // Wait for async initialization to complete
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(KeyboardManager.getInstance).toHaveBeenCalled();
       expect(console.log).toHaveBeenCalledWith(

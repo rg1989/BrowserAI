@@ -1,1 +1,38 @@
-{"icons":{"16":"icon16.plasmo.c9fbbb4e.png","32":"icon32.plasmo.1bb525f0.png","48":"icon48.plasmo.b88acab9.png","64":"icon64.plasmo.66d21e94.png","128":"icon128.plasmo.ef13585c.png"},"manifest_version":3,"action":{"default_icon":{"16":"icon16.plasmo.c9fbbb4e.png","32":"icon32.plasmo.1bb525f0.png","48":"icon48.plasmo.b88acab9.png","64":"icon64.plasmo.66d21e94.png","128":"icon128.plasmo.ef13585c.png"}},"version":"1.0.0","author":"","name":"","description":"A Spotlight-like browser extension with configurable workflows","content_scripts":[{"matches":["<all_urls>"],"js":["content.dbcead7d.js"],"css":["content.c21e907f.css"]}]}
+{
+  "icons": {
+    "16": "icon16.plasmo.c9fbbb4e.png",
+    "32": "icon32.plasmo.1bb525f0.png",
+    "48": "icon48.plasmo.b88acab9.png",
+    "64": "icon64.plasmo.66d21e94.png",
+    "128": "icon128.plasmo.ef13585c.png"
+  },
+  "manifest_version": 3,
+  "action": {
+    "default_icon": {
+      "16": "icon16.plasmo.c9fbbb4e.png",
+      "32": "icon32.plasmo.1bb525f0.png",
+      "48": "icon48.plasmo.b88acab9.png",
+      "64": "icon64.plasmo.66d21e94.png",
+      "128": "icon128.plasmo.ef13585c.png"
+    }
+  },
+  "version": "1.0.0",
+  "author": "",
+  "name": "Spotlight Browser Extension",
+  "description": "A Spotlight-like browser extension with configurable workflows and page context monitoring",
+  "permissions": [
+    "storage",
+    "webRequest",
+    "webNavigation",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.dbcead7d.js"],
+      "css": ["content.c21e907f.css"]
+    }
+  ]
+}

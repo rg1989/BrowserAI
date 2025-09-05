@@ -21,6 +21,9 @@
   "author": "",
   "name": "DEV | Spotlight Browser Extension",
   "description": "A Spotlight-like browser extension with configurable workflows",
+  "background": {
+    "service_worker": "./static/background/index.ts"
+  },
   "content_scripts": [
     {
       "matches": [

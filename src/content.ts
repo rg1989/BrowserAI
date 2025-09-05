@@ -2,6 +2,11 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { SpotlightOverlay } from "./components/SpotlightOverlay";
 import { KeyboardManager } from "./services/KeyboardManager";
+import {
+  PageContextMonitor,
+  MonitoringEvent,
+} from "./services/PageContextMonitor";
+import { MonitoringConfigManager } from "./services/MonitoringConfig";
 
 // Content script for Spotlight Browser Extension
 // This script injects the SpotlightOverlay component into web pages
@@ -9,8 +14,11 @@ import { KeyboardManager } from "./services/KeyboardManager";
 class ContentScript {
   private overlayContainer: HTMLDivElement | null = null;
   private root: any = null;
-  private keyboardManager: KeyboardManager;
+  private keyboardManager: KeyboardManager | null = null;
   private isOverlayVisible = false;
+  private pageContextMonitor: PageContextMonitor | null = null;
+  private monitoringConfig: MonitoringConfigManager | null = null;
+  private isMonitoringEnabled = false;
 
   constructor() {
     try {
@@ -24,9 +32,25 @@ class ContentScript {
   private init(): void {
     // Wait for DOM to be ready
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => this.setupOverlay());
+      document.addEventListener("DOMContentLoaded", () =>
+        this.setupExtension()
+      );
     } else {
+      this.setupExtension();
+    }
+  }
+
+  private async setupExtension(): Promise<void> {
+    try {
+      // Setup overlay first
       this.setupOverlay();
+
+      // Initialize monitoring system
+      await this.initializeMonitoring();
+
+      console.log("Spotlight Browser Extension: Content script initialized");
+    } catch (error) {
+      console.error("Spotlight Browser Extension: Failed to initialize", error);
     }
   }
 
@@ -40,10 +64,11 @@ class ContentScript {
 
       // Initialize React root
       this.initializeReactRoot();
-
-      console.log("Spotlight Browser Extension: Content script initialized");
     } catch (error) {
-      console.error("Spotlight Browser Extension: Failed to initialize", error);
+      console.error(
+        "Spotlight Browser Extension: Failed to setup overlay",
+        error
+      );
     }
   }
 
@@ -79,9 +104,11 @@ class ContentScript {
 
   private setupKeyboardListeners(): void {
     // Setup global keyboard event listeners
-    this.keyboardManager.onToggleOverlay(() => {
-      this.toggleOverlay();
-    });
+    if (this.keyboardManager) {
+      this.keyboardManager.onToggleOverlay(() => {
+        this.toggleOverlay();
+      });
+    }
 
     // Escape key handling is managed by the SpotlightOverlay component
     // through the KeyboardManager, so no additional handling needed here
@@ -97,6 +124,197 @@ class ContentScript {
 
     // Initial render with overlay hidden
     this.renderOverlay();
+  }
+
+  private async initializeMonitoring(): Promise<void> {
+    try {
+      // Load monitoring settings from Chrome storage
+      const settings = await this.loadMonitoringSettings();
+
+      if (!settings || !settings.enabled) {
+        console.log("Page context monitoring is disabled");
+        return;
+      }
+
+      // Create monitoring configuration
+      this.monitoringConfig = new MonitoringConfigManager({
+        enabled: settings.enabled,
+        features: settings.features || {},
+        privacy: settings.privacy || {},
+        performance: settings.performance || {},
+        storage: settings.storage || {},
+      });
+
+      // Check if current domain/path should be excluded
+      if (this.shouldExcludeCurrentPage()) {
+        console.log("Current page excluded from monitoring");
+        return;
+      }
+
+      // Initialize PageContextMonitor
+      this.pageContextMonitor = new PageContextMonitor(
+        this.monitoringConfig.getConfig()
+      );
+
+      // Setup monitoring event listeners
+      this.setupMonitoringEventListeners();
+
+      // Start monitoring
+      await this.pageContextMonitor.start();
+      this.isMonitoringEnabled = true;
+
+      console.log("Page context monitoring started successfully");
+    } catch (error) {
+      console.error("Failed to initialize page context monitoring:", error);
+      // Don't throw - monitoring failure shouldn't break the extension
+    }
+  }
+
+  private async loadMonitoringSettings(): Promise<any> {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage) {
+        const result = await chrome.storage.sync.get(["monitoringSettings"]);
+        return result.monitoringSettings || null;
+      }
+    } catch (error) {
+      console.warn("Failed to load monitoring settings:", error);
+    }
+    return null;
+  }
+
+  private shouldExcludeCurrentPage(): boolean {
+    if (!this.monitoringConfig) return false;
+
+    const currentDomain = window.location.hostname;
+    const currentPath = window.location.pathname;
+
+    return (
+      this.monitoringConfig.isDomainExcluded(currentDomain) ||
+      this.monitoringConfig.isPathExcluded(currentPath)
+    );
+  }
+
+  private setupMonitoringEventListeners(): void {
+    if (!this.pageContextMonitor) return;
+
+    this.pageContextMonitor.addEventListener(MonitoringEvent.STARTED, () => {
+      console.log("Page context monitoring started");
+    });
+
+    this.pageContextMonitor.addEventListener(MonitoringEvent.STOPPED, () => {
+      console.log("Page context monitoring stopped");
+    });
+
+    this.pageContextMonitor.addEventListener(
+      MonitoringEvent.ERROR,
+      (_event, data) => {
+        console.error("Page context monitoring error:", data);
+      }
+    );
+
+    this.pageContextMonitor.addEventListener(
+      MonitoringEvent.CONTEXT_UPDATED,
+      (_event, _context) => {
+        // Context updated - could be used for real-time features
+        console.debug("Page context updated");
+      }
+    );
+
+    // Listen for Chrome storage changes to update monitoring settings
+    if (typeof chrome !== "undefined" && chrome.storage) {
+      chrome.storage.onChanged.addListener((changes, namespace) => {
+        if (namespace === "sync" && changes.monitoringSettings) {
+          this.handleSettingsChange(changes.monitoringSettings.newValue);
+        }
+      });
+    }
+  }
+
+  private async handleSettingsChange(newSettings: any): Promise<void> {
+    try {
+      if (!newSettings || !newSettings.enabled) {
+        // Monitoring disabled
+        await this.disableMonitoring();
+        return;
+      }
+
+      // Check if current page should be excluded with new settings
+      if (this.monitoringConfig) {
+        this.monitoringConfig.updateConfig({
+          enabled: newSettings.enabled,
+          features: newSettings.features || {},
+          privacy: newSettings.privacy || {},
+          performance: newSettings.performance || {},
+          storage: newSettings.storage || {},
+        });
+
+        if (this.shouldExcludeCurrentPage()) {
+          await this.disableMonitoring();
+          return;
+        }
+      }
+
+      // Update monitoring configuration
+      if (this.pageContextMonitor) {
+        this.pageContextMonitor.updateConfig(
+          this.monitoringConfig?.getConfig() || {}
+        );
+
+        // Restart monitoring if it was running
+        if (this.isMonitoringEnabled) {
+          await this.pageContextMonitor.stop();
+          await this.pageContextMonitor.start();
+        }
+      } else {
+        // Initialize monitoring if it wasn't running
+        await this.initializeMonitoring();
+      }
+
+      console.log("Monitoring settings updated");
+    } catch (error) {
+      console.error("Failed to handle settings change:", error);
+    }
+  }
+
+  public async enableMonitoring(): Promise<void> {
+    if (this.isMonitoringEnabled || !this.pageContextMonitor) {
+      return;
+    }
+
+    try {
+      await this.pageContextMonitor.start();
+      this.isMonitoringEnabled = true;
+      console.log("Page context monitoring enabled");
+    } catch (error) {
+      console.error("Failed to enable monitoring:", error);
+    }
+  }
+
+  public async disableMonitoring(): Promise<void> {
+    if (!this.isMonitoringEnabled || !this.pageContextMonitor) {
+      return;
+    }
+
+    try {
+      await this.pageContextMonitor.stop();
+      this.isMonitoringEnabled = false;
+      console.log("Page context monitoring disabled");
+    } catch (error) {
+      console.error("Failed to disable monitoring:", error);
+    }
+  }
+
+  public async getPageContext(): Promise<any> {
+    if (!this.pageContextMonitor || !this.isMonitoringEnabled) {
+      return null;
+    }
+
+    try {
+      return await this.pageContextMonitor.getContext();
+    } catch (error) {
+      console.error("Failed to get page context:", error);
+      return null;
+    }
   }
 
   private renderOverlay(): void {
@@ -156,23 +374,36 @@ class ContentScript {
     console.log("Spotlight Browser Extension: Overlay hidden");
   }
 
-  public cleanup(): void {
+  public async cleanup(): Promise<void> {
     // Cleanup method for extension unload
-    if (this.overlayContainer && this.overlayContainer.parentNode) {
-      this.overlayContainer.parentNode.removeChild(this.overlayContainer);
+    try {
+      // Stop monitoring
+      if (this.pageContextMonitor) {
+        await this.pageContextMonitor.destroy();
+        this.pageContextMonitor = null;
+      }
+
+      // Cleanup overlay
+      if (this.overlayContainer && this.overlayContainer.parentNode) {
+        this.overlayContainer.parentNode.removeChild(this.overlayContainer);
+      }
+
+      if (this.root) {
+        this.root.unmount();
+      }
+
+      // Restore page styles
+      document.body.style.overflow = "";
+
+      // Cleanup keyboard manager
+      if (this.keyboardManager) {
+        this.keyboardManager.cleanup();
+      }
+
+      console.log("Spotlight Browser Extension: Content script cleaned up");
+    } catch (error) {
+      console.error("Error during cleanup:", error);
     }
-
-    if (this.root) {
-      this.root.unmount();
-    }
-
-    // Restore page styles
-    document.body.style.overflow = "";
-
-    // Cleanup keyboard manager
-    this.keyboardManager.cleanup();
-
-    console.log("Spotlight Browser Extension: Content script cleaned up");
   }
 }
 
@@ -201,20 +432,87 @@ if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
 // Cleanup on page unload
 window.addEventListener("beforeunload", () => {
   if (contentScript) {
-    contentScript.cleanup();
+    // Note: beforeunload doesn't wait for async operations
+    // but we still call cleanup for synchronous cleanup
+    contentScript.cleanup().catch((error) => {
+      console.error("Error during page unload cleanup:", error);
+    });
   }
 });
 
-// Handle extension updates/reloads
+// Handle extension updates/reloads and monitoring control
 if (typeof chrome !== "undefined" && chrome.runtime) {
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === "EXTENSION_RELOAD") {
-      if (contentScript) {
-        contentScript.cleanup();
-      }
-      // Reinitialize
-      contentScript = new ContentScript();
-      sendResponse({ success: true });
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!contentScript) {
+      sendResponse({ success: false, error: "Content script not initialized" });
+      return;
+    }
+
+    switch (message.type) {
+      case "EXTENSION_RELOAD":
+        contentScript
+          .cleanup()
+          .then(() => {
+            // Reinitialize
+            contentScript = new ContentScript();
+            sendResponse({ success: true });
+          })
+          .catch((error) => {
+            console.error("Failed to reload extension:", error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true; // Keep message channel open for async response
+
+      case "ENABLE_MONITORING":
+        contentScript
+          .enableMonitoring()
+          .then(() => {
+            sendResponse({ success: true });
+          })
+          .catch((error: Error) => {
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+
+      case "DISABLE_MONITORING":
+        contentScript
+          .disableMonitoring()
+          .then(() => {
+            sendResponse({ success: true });
+          })
+          .catch((error: Error) => {
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+
+      case "GET_PAGE_CONTEXT":
+        contentScript
+          .getPageContext()
+          .then((context) => {
+            sendResponse({ success: true, context });
+          })
+          .catch((error) => {
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+
+      case "UPDATE_MONITORING_SETTINGS":
+        // Reinitialize monitoring with new settings
+        contentScript
+          .disableMonitoring()
+          .then(() => {
+            return (contentScript as any).initializeMonitoring();
+          })
+          .then(() => {
+            sendResponse({ success: true });
+          })
+          .catch((error: Error) => {
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+
+      default:
+        sendResponse({ success: false, error: "Unknown message type" });
     }
   });
 }
