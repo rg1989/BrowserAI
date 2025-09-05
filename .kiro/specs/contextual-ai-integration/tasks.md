@@ -49,7 +49,7 @@
   - Write component tests for contextual chat functionality
   - _Requirements: 1.1, 1.2, 8.1_
 
-- [ ] MVP-6. Integrate with existing content script
+- [x] MVP-6. Integrate with existing content script
 
   - Modify content script to initialize ContextualAIService
   - Connect with existing PageContextMonitor infrastructure

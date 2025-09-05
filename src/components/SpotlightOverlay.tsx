@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useCallback, startTransition } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  startTransition,
+} from "react";
 import { SpotlightOverlayProps } from "../types/workflow";
 import { WorkflowManager } from "../services/WorkflowManager";
 import { KeyboardManager } from "../services/KeyboardManager";
@@ -11,6 +16,7 @@ import "./SpotlightOverlay.css";
 export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
   isVisible,
   onClose,
+  contextualAIService,
 }) => {
   const [searchValue, setSearchValue] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -42,20 +48,23 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
   // Initialize workflow manager
   useEffect(() => {
     if (isVisible) {
-      workflowManager.initialize().then(() => {
-        updateWorkflowState();
-      }).catch((error) => {
-        console.error("Failed to initialize workflow manager:", error);
-        // Set fallback state
-        startTransition(() => {
-          setCurrentWorkflows([]);
-          setCurrentWorkflow(null);
-          setBreadcrumbPath("");
-          setIsSearchEnabled(true);
-          setSelectedIndex(0);
-          setSearchValue("");
+      workflowManager
+        .initialize()
+        .then(() => {
+          updateWorkflowState();
+        })
+        .catch((error) => {
+          console.error("Failed to initialize workflow manager:", error);
+          // Set fallback state
+          startTransition(() => {
+            setCurrentWorkflows([]);
+            setCurrentWorkflow(null);
+            setBreadcrumbPath("");
+            setIsSearchEnabled(true);
+            setSelectedIndex(0);
+            setSearchValue("");
+          });
         });
-      });
     }
   }, [isVisible, workflowManager, updateWorkflowState]);
 
@@ -191,6 +200,7 @@ export const SpotlightOverlay: React.FC<SpotlightOverlayProps> = ({
           workflowType={currentWorkflow.id as "ai-ask" | "ai-agent"}
           onSendMessage={handleSendMessage}
           messages={[]}
+          contextualAIService={contextualAIService}
         />
       );
     }

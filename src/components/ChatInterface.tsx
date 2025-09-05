@@ -21,6 +21,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   workflowType,
   onSendMessage,
   messages: initialMessages = [],
+  contextualAIService: externalContextualAIService,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [inputValue, setInputValue] = useState("");
@@ -41,7 +42,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const contextProvider = ContextProvider.getInstance();
-  const contextualAIService = useRef(new ContextualAIService()).current;
+  const contextualAIService =
+    externalContextualAIService || useRef(new ContextualAIService()).current;
   const conversationId = useRef(`chat_${Date.now()}`).current;
 
   const scrollToBottom = () => {

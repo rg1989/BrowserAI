@@ -8,6 +8,8 @@ import {
 } from "./services/PageContextMonitor";
 import { MonitoringConfigManager } from "./services/MonitoringConfig";
 import { ContextProvider } from "./services/ContextProvider";
+import { ContextualAIService } from "./services/ContextualAIService";
+import { AIServiceManager } from "./services/AIService";
 
 // Content script for Spotlight Browser Extension
 // This script injects the SpotlightOverlay component into web pages
@@ -19,7 +21,9 @@ class ContentScript {
   private isOverlayVisible = false;
   private pageContextMonitor: PageContextMonitor | null = null;
   private monitoringConfig: MonitoringConfigManager | null = null;
-  private contextProvider: ContextProvider | null = null;
+  private _contextProvider: ContextProvider | null = null;
+  private _contextualAIService: ContextualAIService | null = null;
+  private _aiServiceManager: AIServiceManager | null = null;
   private isMonitoringEnabled = false;
 
   constructor() {
@@ -166,14 +170,74 @@ class ContentScript {
       this.isMonitoringEnabled = true;
 
       // Initialize ContextProvider with the PageContextMonitor
-      this.contextProvider = ContextProvider.getInstance();
-      this.contextProvider.initialize(this.pageContextMonitor);
+      this._contextProvider = ContextProvider.getInstance();
+      this._contextProvider.initialize(this.pageContextMonitor);
+
+      // Initialize AI services and ContextualAIService
+      await this.initializeContextualAI();
 
       console.log("Page context monitoring started successfully");
     } catch (error) {
       console.error("Failed to initialize page context monitoring:", error);
       // Don't throw - monitoring failure shouldn't break the extension
     }
+  }
+
+  /**
+   * Initialize ContextualAIService with AI service manager
+   */
+  private async initializeContextualAI(): Promise<void> {
+    try {
+      // Initialize AI service manager
+      this._aiServiceManager = AIServiceManager.getInstance();
+
+      // Load AI service configuration from storage
+      const aiConfig = await this.loadAIServiceConfig();
+
+      if (aiConfig && aiConfig.serviceName) {
+        try {
+          await this._aiServiceManager.setService(
+            aiConfig.serviceName,
+            aiConfig.config
+          );
+          console.log(
+            `AI service "${aiConfig.serviceName}" initialized successfully`
+          );
+        } catch (error) {
+          console.warn(
+            `Failed to initialize AI service "${aiConfig.serviceName}", using default:`,
+            error
+          );
+          // Fall back to default service (MockAIService)
+        }
+      }
+
+      // Initialize ContextualAIService with AI service and context provider
+      this._contextualAIService = new ContextualAIService(
+        this._aiServiceManager.getCurrentService(),
+        this._contextProvider || undefined
+      );
+
+      console.log("ContextualAIService initialized successfully");
+    } catch (error) {
+      console.error("Failed to initialize ContextualAIService:", error);
+      // Don't throw - AI service failure shouldn't break the extension
+    }
+  }
+
+  /**
+   * Load AI service configuration from Chrome storage
+   */
+  private async loadAIServiceConfig(): Promise<any> {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage) {
+        const result = await chrome.storage.sync.get(["aiServiceConfig"]);
+        return result.aiServiceConfig || null;
+      }
+    } catch (error) {
+      console.warn("Failed to load AI service configuration:", error);
+    }
+    return null;
   }
 
   private async loadMonitoringSettings(): Promise<any> {
@@ -306,8 +370,8 @@ class ContentScript {
       this.isMonitoringEnabled = false;
 
       // Clear context provider cache when monitoring is disabled
-      if (this.contextProvider) {
-        this.contextProvider.clearCache();
+      if (this._contextProvider) {
+        this._contextProvider.clearCache();
       }
 
       console.log("Page context monitoring disabled");
@@ -329,6 +393,34 @@ class ContentScript {
     }
   }
 
+  /**
+   * Get ContextualAIService instance
+   */
+  public get contextualAIService(): ContextualAIService | null {
+    return this._contextualAIService;
+  }
+
+  /**
+   * Get ContextProvider instance
+   */
+  public get contextProvider(): ContextProvider | null {
+    return this._contextProvider;
+  }
+
+  /**
+   * Get AIServiceManager instance
+   */
+  public get aiServiceManager(): AIServiceManager | null {
+    return this._aiServiceManager;
+  }
+
+  /**
+   * Get monitoring enabled status
+   */
+  public get monitoringEnabled(): boolean {
+    return this.isMonitoringEnabled;
+  }
+
   private renderOverlay(): void {
     if (!this.root) return;
 
@@ -336,6 +428,7 @@ class ContentScript {
       React.createElement(SpotlightOverlay, {
         isVisible: this.isOverlayVisible,
         onClose: () => this.hideOverlay(),
+        contextualAIService: this._contextualAIService,
       })
     );
   }
@@ -521,6 +614,42 @@ if (typeof chrome !== "undefined" && chrome.runtime) {
           .catch((error: Error) => {
             sendResponse({ success: false, error: error.message });
           });
+        return true;
+
+      case "GET_CONTEXTUAL_AI_STATUS":
+        const aiStatus = {
+          available: !!contentScript.contextualAIService,
+          contextReady: contentScript.contextProvider?.isReady() || false,
+          monitoringEnabled: contentScript.monitoringEnabled,
+          aiServiceInfo: contentScript.contextualAIService
+            ? contentScript.aiServiceManager?.getServiceInfo()
+            : null,
+        };
+        sendResponse({ success: true, status: aiStatus });
+        return true;
+
+      case "UPDATE_AI_SERVICE_CONFIG":
+        if (contentScript.aiServiceManager && message.config) {
+          contentScript.aiServiceManager
+            .setService(message.config.serviceName, message.config.config)
+            .then(() => {
+              // Update ContextualAIService with new AI service
+              if (contentScript && contentScript.contextualAIService) {
+                contentScript.contextualAIService.setAIService(
+                  contentScript.aiServiceManager!.getCurrentService()
+                );
+              }
+              sendResponse({ success: true });
+            })
+            .catch((error: Error) => {
+              sendResponse({ success: false, error: error.message });
+            });
+        } else {
+          sendResponse({
+            success: false,
+            error: "Invalid AI service configuration",
+          });
+        }
         return true;
 
       default:

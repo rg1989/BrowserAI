@@ -54,6 +54,7 @@ export interface WorkflowComponentProps {
 export interface SpotlightOverlayProps {
   isVisible: boolean;
   onClose: () => void;
+  contextualAIService?: any; // ContextualAIService - using any to avoid circular imports
 }
 
 export interface SearchFieldProps {
@@ -69,4 +70,5 @@ export interface ChatInterfaceProps {
   workflowType: "ai-ask" | "ai-agent";
   onSendMessage: (message: string) => void;
   messages: ChatMessage[];
+  contextualAIService?: any; // ContextualAIService - using any to avoid circular imports
 }
