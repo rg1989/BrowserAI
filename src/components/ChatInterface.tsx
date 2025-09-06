@@ -40,6 +40,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [contextSummary, setContextSummary] = useState<ContextSummary | null>(
     null
   );
+  const [contextStatus, setContextStatus] = useState<{
+    isReady: boolean;
+    error?: string;
+    isLoading: boolean;
+  }>({ isReady: false, isLoading: true });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const contextProvider = ContextProvider.getInstance();
   const contextualAIService =
@@ -61,6 +66,35 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     loadProactiveInsights();
     loadWorkflowRecommendations();
     loadContextSummary();
+    checkContextStatus();
+  }, []);
+
+  // Periodically check context status with timeout
+  useEffect(() => {
+    let statusInterval: NodeJS.Timeout;
+    let timeoutCounter = 0;
+    const maxChecks = 15; // Maximum 30 seconds (15 checks * 2 seconds)
+
+    const checkWithTimeout = () => {
+      timeoutCounter++;
+
+      if (timeoutCounter >= maxChecks) {
+        // Stop checking after timeout and show error
+        setContextStatus({
+          isReady: false,
+          isLoading: false,
+          error: "Context loading timed out - please refresh the page",
+        });
+        clearInterval(statusInterval);
+        return;
+      }
+
+      checkContextStatus();
+    };
+
+    statusInterval = setInterval(checkWithTimeout, 2000); // Check every 2 seconds
+
+    return () => clearInterval(statusInterval);
   }, []);
 
   // Update context summary when context is enabled/disabled
@@ -123,6 +157,114 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setContextSummary(summary);
     } catch (error) {
       console.error("Failed to load context summary:", error);
+    }
+  };
+
+  const checkContextStatus = async () => {
+    try {
+      const isReady = contextProvider.isReady();
+
+      if (isReady) {
+        setContextStatus({ isReady: true, isLoading: false });
+      } else {
+        // Try to determine why context is not ready
+        let errorMessage = "Context system initializing...";
+        let isLoading = true;
+
+        try {
+          // Check if monitoring is enabled in storage
+          if (typeof chrome !== "undefined" && chrome.storage) {
+            const result = await chrome.storage.sync.get([
+              "monitoringSettings",
+            ]);
+            const settings = result.monitoringSettings;
+
+            if (!settings || !settings.enabled) {
+              errorMessage = "Page monitoring disabled";
+              isLoading = false;
+            } else {
+              // Check if we're on an excluded page
+              const currentUrl = window.location.href;
+              if (
+                currentUrl.startsWith("chrome://") ||
+                currentUrl.startsWith("chrome-extension://")
+              ) {
+                errorMessage = "Context not available on this page type";
+                isLoading = false;
+              } else {
+                // Check if content script is available and get actual status
+                try {
+                  const response = await chrome.runtime.sendMessage({
+                    type: "GET_CONTEXTUAL_AI_STATUS",
+                  });
+
+                  if (response && response.success) {
+                    const status = response.status;
+                    if (status.contextReady) {
+                      // Context should be ready but provider says it's not - refresh
+                      setTimeout(() => checkContextStatus(), 1000);
+                      errorMessage = "Context loading...";
+                      isLoading = true;
+                    } else if (status.monitoringEnabled) {
+                      // Check monitoring state for more specific status
+                      switch (status.monitoringState) {
+                        case "STARTING":
+                          errorMessage = "Page monitoring starting...";
+                          isLoading = true;
+                          break;
+                        case "RUNNING":
+                          errorMessage = "Context initializing...";
+                          isLoading = true;
+                          break;
+                        case "ERROR":
+                          errorMessage =
+                            "Page monitoring error - try refreshing";
+                          isLoading = false;
+                          break;
+                        case "STOPPED":
+                          errorMessage = "Page monitoring stopped";
+                          isLoading = false;
+                          break;
+                        default:
+                          errorMessage = "Page monitoring starting...";
+                          isLoading = true;
+                      }
+                    } else {
+                      errorMessage = "Page monitoring not enabled";
+                      isLoading = false;
+                    }
+                  } else {
+                    errorMessage = "Extension not ready";
+                    isLoading = false;
+                  }
+                } catch (runtimeError) {
+                  // Fallback to default behavior if runtime messaging fails
+                  errorMessage = "Page monitoring starting...";
+                  isLoading = true;
+                }
+              }
+            }
+          } else {
+            errorMessage = "Chrome extension API not available";
+            isLoading = false;
+          }
+        } catch (storageError) {
+          errorMessage = "Unable to check monitoring settings";
+          isLoading = false;
+        }
+
+        setContextStatus({
+          isReady: false,
+          isLoading,
+          error: errorMessage,
+        });
+      }
+    } catch (error) {
+      setContextStatus({
+        isReady: false,
+        isLoading: false,
+        error: "Context system error",
+      });
     }
   };
 
@@ -290,7 +432,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <h3 className="chat-title">
             {workflowType === "ai-ask" ? "AI Ask" : "AI Agent"}
           </h3>
-          {contextProvider.isReady() && (
+          {contextProvider.isReady() ? (
             <div className="context-controls">
               <button
                 className={`context-toggle ${
@@ -317,6 +459,37 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 💡
               </button>
             </div>
+          ) : (
+            <div className="context-status">
+              <span
+                className={`context-status-indicator ${
+                  contextStatus.isLoading ? "loading" : "error"
+                }`}
+                title={contextStatus.error || "Context system not ready"}
+              >
+                {contextStatus.isLoading ? (
+                  <>🔄 Context: {contextStatus.error || "Loading..."}</>
+                ) : (
+                  <>⚠️ Context: {contextStatus.error || "Not Available"}</>
+                )}
+              </span>
+              {!contextStatus.isLoading && !contextStatus.isReady && (
+                <button
+                  className="context-retry-button"
+                  onClick={() => {
+                    setContextStatus({
+                      isReady: false,
+                      isLoading: true,
+                      error: "Retrying...",
+                    });
+                    setTimeout(checkContextStatus, 500);
+                  }}
+                  title="Retry context initialization"
+                >
+                  🔄
+                </button>
+              )}
+            </div>
           )}
         </div>
         <div className="chat-subtitle">
@@ -328,11 +501,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             contextSummary?.hasContext && (
               <span className="context-indicator">
                 {" "}
-                • Context: {contextSummary.contextTypes.join(", ")}
+                • Context:{" "}
+                {contextSummary?.contextTypes?.join(", ") ||
+                  "content, network, interactions"}
               </span>
             )}
           {contextProvider.isReady() && !contextEnabled && (
             <span className="context-disabled"> • Context disabled</span>
+          )}
+          {!contextProvider.isReady() && (
+            <span className="context-status-subtitle">
+              {" "}
+              • {contextStatus.error || "Context system not ready"}
+            </span>
           )}
         </div>
       </div>

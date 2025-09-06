@@ -215,47 +215,106 @@ export class MockAIService extends AIService {
       return "";
     }
 
-    // Add some context-aware elements to the response
+    // Generate truly contextual response based on page content
     let response = template;
 
-    // Add reference to the user's message
-    if (message.length > 50) {
-      response += ` Your detailed question about "${message.substring(
-        0,
-        50
-      )}..." requires a comprehensive answer.`;
+    // Add page-specific context
+    const pageTitle = document.title;
+    const pageUrl = window.location.href;
+    const domain = window.location.hostname;
+
+    // Analyze the user's question for context clues
+    const lowerMessage = message.toLowerCase();
+
+    if (
+      lowerMessage.includes("page") ||
+      lowerMessage.includes("website") ||
+      lowerMessage.includes("site")
+    ) {
+      response += ` Based on the current page "${pageTitle}" at ${domain}, I can see this appears to be `;
+
+      // Determine page type from URL and title
+      if (domain.includes("github")) {
+        response += "a GitHub repository or development platform.";
+      } else if (domain.includes("google")) {
+        response += "Google's search engine or services.";
+      } else if (domain.includes("stackoverflow")) {
+        response += "a Stack Overflow programming Q&A page.";
+      } else if (
+        pageTitle.toLowerCase().includes("login") ||
+        pageUrl.includes("login")
+      ) {
+        response += "a login or authentication page.";
+      } else if (pageTitle.toLowerCase().includes("dashboard")) {
+        response += "a dashboard or admin interface.";
+      } else {
+        response += `a ${domain} website with content related to "${pageTitle}".`;
+      }
     } else {
-      response += ` Regarding "${message}":`;
+      response += ` Regarding "${message.substring(0, 50)}${
+        message.length > 50 ? "..." : ""
+      }":`;
     }
 
-    // Add some mock helpful content
-    const helpfulContent = [
-      " Here are the key points to consider:",
-      " Let me break this down for you:",
-      " Based on current best practices:",
-      " From my analysis:",
+    // Add contextual analysis
+    const contextualInsights = [
+      `\n\n**Page Context**: Currently viewing "${pageTitle}" on ${domain}`,
+      `\n**URL**: ${pageUrl}`,
     ];
 
-    response +=
-      helpfulContent[Math.floor(Math.random() * helpfulContent.length)];
-
-    // Add mock bullet points
-    const bulletPoints = [
-      "\n• This is an important consideration for your use case",
-      "\n• You should also think about the implementation details",
-      "\n• Consider the long-term implications of this approach",
-      "\n• Make sure to test this thoroughly before deployment",
-    ];
-
-    const numPoints = Math.floor(Math.random() * 3) + 1;
-    for (let i = 0; i < numPoints; i++) {
-      response += bulletPoints[Math.floor(Math.random() * bulletPoints.length)];
+    // Add page-specific insights
+    if (document.forms.length > 0) {
+      contextualInsights.push(
+        `\n📝 **Forms**: Found ${document.forms.length} form(s) on this page`
+      );
     }
 
-    // Add context reference if available
+    if (document.images.length > 0) {
+      contextualInsights.push(
+        `\n🖼️ **Media**: Contains ${document.images.length} image(s)`
+      );
+    }
+
+    const links = document.querySelectorAll("a").length;
+    if (links > 0) {
+      contextualInsights.push(
+        `\n🔗 **Navigation**: ${links} link(s) available`
+      );
+    }
+
+    // Add contextual recommendations based on page type
+    if (lowerMessage.includes("help") || lowerMessage.includes("how")) {
+      response += `\n\n**Contextual Suggestions:**`;
+
+      if (document.forms.length > 0) {
+        response += `\n• I notice there are forms on this page - I can help you fill them out`;
+      }
+
+      if (
+        pageTitle.toLowerCase().includes("error") ||
+        pageUrl.includes("error")
+      ) {
+        response += `\n• This appears to be an error page - I can help troubleshoot the issue`;
+      }
+
+      if (domain.includes("github")) {
+        response += `\n• For GitHub pages, I can help with repository navigation, code review, or development workflows`;
+      }
+
+      response += `\n• I can analyze the page content and provide specific guidance for this ${domain} page`;
+    }
+
+    // Add some of the contextual insights
+    response += contextualInsights.slice(0, 2).join("");
+
+    // Add conversation context if available
     if (context && context.length > 0) {
-      response += `\n\nBuilding on our previous conversation, this aligns with what we discussed earlier.`;
+      response += `\n\n**Conversation**: Building on our previous conversation with ${context.length} message(s).`;
     }
+
+    // Add mock network activity (since we can't access real network data in MockAI)
+    const mockNetworkActivity = Math.floor(Math.random() * 5) + 1;
+    response += `\n**Activity**: Detected ${mockNetworkActivity} recent network request(s)`;
 
     return response;
   }

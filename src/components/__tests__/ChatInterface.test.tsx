@@ -402,12 +402,16 @@ describe("ChatInterface", () => {
   });
 
   describe("Context Provider Integration", () => {
-    it("does not show context controls when context provider is not ready", () => {
+    it("shows context status when context provider is not ready", () => {
       mockContextProvider.isReady.mockReturnValue(false);
 
       render(<ChatInterface {...defaultProps} />);
 
-      expect(screen.queryByText(/Context:/)).not.toBeInTheDocument();
+      // Should show context status indicator instead of controls
+      expect(screen.getByText(/Context:/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Context:/ })
+      ).not.toBeInTheDocument();
     });
 
     it("handles context provider errors gracefully", async () => {

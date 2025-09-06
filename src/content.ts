@@ -165,8 +165,13 @@ class ContentScript {
       // Setup monitoring event listeners
       this.setupMonitoringEventListeners();
 
-      // Start monitoring
-      await this.pageContextMonitor.start();
+      // Start monitoring with timeout
+      const startTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Monitoring start timeout")), 10000); // 10 second timeout
+      });
+
+      await Promise.race([this.pageContextMonitor.start(), startTimeout]);
+
       this.isMonitoringEnabled = true;
 
       // Initialize ContextProvider with the PageContextMonitor
@@ -179,6 +184,19 @@ class ContentScript {
       console.log("Page context monitoring started successfully");
     } catch (error) {
       console.error("Failed to initialize page context monitoring:", error);
+
+      // Clean up failed monitoring attempt
+      if (this.pageContextMonitor) {
+        try {
+          await this.pageContextMonitor.stop();
+        } catch (stopError) {
+          console.warn("Error stopping failed monitoring:", stopError);
+        }
+        this.pageContextMonitor = null;
+      }
+
+      this.isMonitoringEnabled = false;
+
       // Don't throw - monitoring failure shouldn't break the extension
     }
   }
@@ -421,6 +439,13 @@ class ContentScript {
     return this.isMonitoringEnabled;
   }
 
+  /**
+   * Get PageContextMonitor instance
+   */
+  public getPageContextMonitor(): PageContextMonitor | null {
+    return this.pageContextMonitor;
+  }
+
   private renderOverlay(): void {
     if (!this.root) return;
 
@@ -621,6 +646,8 @@ if (typeof chrome !== "undefined" && chrome.runtime) {
           available: !!contentScript.contextualAIService,
           contextReady: contentScript.contextProvider?.isReady() || false,
           monitoringEnabled: contentScript.monitoringEnabled,
+          monitoringState:
+            contentScript.getPageContextMonitor()?.getState() || "STOPPED",
           aiServiceInfo: contentScript.contextualAIService
             ? contentScript.aiServiceManager?.getServiceInfo()
             : null,
