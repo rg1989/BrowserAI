@@ -117,12 +117,16 @@ describe("ContextualAIService Integration", () => {
         ContextProvider.getInstance()
       );
 
-      await expect(
-        contextualServiceWithFailingAI.sendContextualMessage(
+      const response =
+        await contextualServiceWithFailingAI.sendContextualMessage(
           "Test message",
           "test-conversation"
-        )
-      ).rejects.toThrow("AI service temporarily unavailable");
+        );
+
+      // Should fallback gracefully instead of throwing
+      expect(response).toBeDefined();
+      expect(response.message).toContain("fallback mode");
+      expect(contextualServiceWithFailingAI.isUsingFallback()).toBe(true);
     });
 
     it("should work when context provider is not ready", async () => {

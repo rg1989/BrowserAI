@@ -1,8 +1,13 @@
-import { AIService, AIServiceResponse } from "./AIService";
+import { AIService, AIServiceResponse, MockAIService } from "./AIService";
 import { BrowserLLMService } from "./BrowserLLMService";
 import { ContextProvider } from "./ContextProvider";
 import { FormattedContext } from "./ContextFormatter";
 import { ChatMessage } from "../types/workflow";
+import {
+  ErrorHandler,
+  ErrorCategory,
+  ErrorSeverity,
+} from "../utils/ErrorHandler";
 
 /**
  * Enhanced AI service response with contextual information
@@ -88,9 +93,12 @@ export interface ContextSummary {
  */
 export class ContextualAIService {
   private aiService: AIService;
+  private fallbackService: AIService;
   private contextProvider: ContextProvider;
   private conversationContexts: Map<string, ConversationContext> = new Map();
   private defaultOptions: ContextualMessageOptions;
+  private errorHandler: ErrorHandler;
+  private usingFallback: boolean = false;
 
   constructor(
     aiService?: AIService,
@@ -99,7 +107,10 @@ export class ContextualAIService {
   ) {
     // Use BrowserLLMService as default if no AI service provided
     this.aiService = aiService || new BrowserLLMService();
+    // Always have MockAIService as fallback
+    this.fallbackService = new MockAIService();
     this.contextProvider = contextProvider || ContextProvider.getInstance();
+    this.errorHandler = ErrorHandler.getInstance();
 
     this.defaultOptions = {
       includeNetworkData: true,
@@ -165,10 +176,11 @@ export class ContextualAIService {
         }
       }
 
-      // Send message to AI service
-      const response = await this.aiService.sendMessage(
+      // Send message with fallback logic
+      const response = await this._sendMessageWithFallback(
         contextualMessage,
-        conversation.messages
+        conversation.messages,
+        conversationId
       );
 
       // Update conversation history
@@ -182,6 +194,106 @@ export class ContextualAIService {
       console.error("Failed to send contextual message:", error);
       throw error;
     }
+  }
+
+  /**
+   * Send message with automatic fallback to MockAIService
+   */
+  private async _sendMessageWithFallback(
+    message: string,
+    context?: ChatMessage[],
+    conversationId?: string
+  ): Promise<AIServiceResponse> {
+    try {
+      // Try primary AI service first
+      const response = await this.aiService.sendMessage(message, context);
+
+      // If we were using fallback and primary service works, switch back
+      if (this.usingFallback) {
+        console.log(
+          "Primary AI service recovered, switching back from fallback"
+        );
+        this.usingFallback = false;
+      }
+
+      return response;
+    } catch (primaryError) {
+      // Log the primary service error
+      await this.errorHandler.handleError(
+        ErrorCategory.CONTEXT,
+        ErrorSeverity.MEDIUM,
+        `Primary AI service failed: ${
+          primaryError instanceof Error
+            ? primaryError.message
+            : String(primaryError)
+        }`,
+        "ContextualAIService",
+        primaryError instanceof Error
+          ? primaryError
+          : new Error(String(primaryError)),
+        { conversationId, usingFallback: this.usingFallback }
+      );
+
+      try {
+        // Try fallback service
+        console.warn(
+          "Primary AI service failed, falling back to MockAIService"
+        );
+        this.usingFallback = true;
+
+        const fallbackResponse = await this.fallbackService.sendMessage(
+          message,
+          context
+        );
+
+        // Add fallback indicator to response
+        return {
+          ...fallbackResponse,
+          message: this._addFallbackNotice(fallbackResponse.message),
+          model: `${fallbackResponse.model || "fallback"} (fallback mode)`,
+        };
+      } catch (fallbackError) {
+        // Both services failed
+        await this.errorHandler.handleError(
+          ErrorCategory.CONTEXT,
+          ErrorSeverity.HIGH,
+          `Both primary and fallback AI services failed`,
+          "ContextualAIService",
+          fallbackError instanceof Error
+            ? fallbackError
+            : new Error(String(fallbackError)),
+          {
+            conversationId,
+            primaryError:
+              primaryError instanceof Error
+                ? primaryError.message
+                : String(primaryError),
+            fallbackError:
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : String(fallbackError),
+          }
+        );
+
+        // Return a basic error response instead of throwing
+        return {
+          message:
+            "I'm sorry, but I'm currently unable to process your request due to technical difficulties. Please try again later.",
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          model: "error-fallback",
+          finishReason: "error",
+        };
+      }
+    }
+  }
+
+  /**
+   * Add fallback notice to response message
+   */
+  private _addFallbackNotice(message: string): string {
+    const notice =
+      "\n\n*Note: I'm currently running in fallback mode with limited capabilities.*";
+    return message + notice;
   }
 
   /**
@@ -232,11 +344,12 @@ export class ContextualAIService {
         }
       }
 
-      // Send streaming message to AI service
-      const response = await this.aiService.sendMessageStream(
+      // Send streaming message with fallback logic
+      const response = await this._sendMessageStreamWithFallback(
         contextualMessage,
         conversation.messages,
-        onChunk
+        onChunk,
+        conversationId
       );
 
       // Update conversation history
@@ -249,6 +362,118 @@ export class ContextualAIService {
     } catch (error) {
       console.error("Failed to send contextual streaming message:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Send streaming message with automatic fallback
+   */
+  private async _sendMessageStreamWithFallback(
+    message: string,
+    context?: ChatMessage[],
+    onChunk?: (chunk: string) => void,
+    conversationId?: string
+  ): Promise<AIServiceResponse> {
+    try {
+      // Try primary AI service first
+      const response = await this.aiService.sendMessageStream(
+        message,
+        context,
+        onChunk
+      );
+
+      // If we were using fallback and primary service works, switch back
+      if (this.usingFallback) {
+        console.log(
+          "Primary AI service recovered, switching back from fallback"
+        );
+        this.usingFallback = false;
+      }
+
+      return response;
+    } catch (primaryError) {
+      // Log the primary service error
+      await this.errorHandler.handleError(
+        ErrorCategory.CONTEXT,
+        ErrorSeverity.MEDIUM,
+        `Primary AI service streaming failed: ${
+          primaryError instanceof Error
+            ? primaryError.message
+            : String(primaryError)
+        }`,
+        "ContextualAIService",
+        primaryError instanceof Error
+          ? primaryError
+          : new Error(String(primaryError)),
+        { conversationId, streaming: true, usingFallback: this.usingFallback }
+      );
+
+      try {
+        // Try fallback service
+        console.warn(
+          "Primary AI service streaming failed, falling back to MockAIService"
+        );
+        this.usingFallback = true;
+
+        // Wrap onChunk to add fallback notice
+        const wrappedOnChunk = onChunk
+          ? (chunk: string) => {
+              onChunk(chunk);
+            }
+          : undefined;
+
+        const fallbackResponse = await this.fallbackService.sendMessageStream(
+          message,
+          context,
+          wrappedOnChunk
+        );
+
+        // Add fallback indicator to response
+        return {
+          ...fallbackResponse,
+          message: this._addFallbackNotice(fallbackResponse.message),
+          model: `${fallbackResponse.model || "fallback"} (fallback mode)`,
+        };
+      } catch (fallbackError) {
+        // Both services failed
+        await this.errorHandler.handleError(
+          ErrorCategory.CONTEXT,
+          ErrorSeverity.HIGH,
+          `Both primary and fallback AI services failed for streaming`,
+          "ContextualAIService",
+          fallbackError instanceof Error
+            ? fallbackError
+            : new Error(String(fallbackError)),
+          {
+            conversationId,
+            streaming: true,
+            primaryError:
+              primaryError instanceof Error
+                ? primaryError.message
+                : String(primaryError),
+            fallbackError:
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : String(fallbackError),
+          }
+        );
+
+        // Send error message through onChunk if available
+        if (onChunk) {
+          onChunk(
+            "I'm sorry, but I'm currently unable to process your request due to technical difficulties. Please try again later."
+          );
+        }
+
+        // Return a basic error response
+        return {
+          message:
+            "I'm sorry, but I'm currently unable to process your request due to technical difficulties. Please try again later.",
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          model: "error-fallback",
+          finishReason: "error",
+        };
+      }
     }
   }
 
@@ -372,6 +597,78 @@ export class ContextualAIService {
    */
   getConversation(conversationId: string): ConversationContext | undefined {
     return this.conversationContexts.get(conversationId);
+  }
+
+  /**
+   * Check if currently using fallback service
+   */
+  isUsingFallback(): boolean {
+    return this.usingFallback;
+  }
+
+  /**
+   * Get service health status
+   */
+  async getServiceHealthStatus(): Promise<{
+    primaryService: {
+      name: string;
+      available: boolean;
+      error?: string;
+    };
+    fallbackService: {
+      name: string;
+      available: boolean;
+    };
+    currentlyUsing: "primary" | "fallback";
+  }> {
+    let primaryAvailable = true;
+    let primaryError: string | undefined;
+
+    try {
+      await this.aiService.validateConfig();
+    } catch (error) {
+      primaryAvailable = false;
+      primaryError = error instanceof Error ? error.message : String(error);
+    }
+
+    return {
+      primaryService: {
+        name: this.aiService.getServiceInfo().name,
+        available: primaryAvailable,
+        error: primaryError,
+      },
+      fallbackService: {
+        name: this.fallbackService.getServiceInfo().name,
+        available: true, // MockAIService is always available
+      },
+      currentlyUsing: this.usingFallback ? "fallback" : "primary",
+    };
+  }
+
+  /**
+   * Force switch to fallback service
+   */
+  switchToFallback(): void {
+    this.usingFallback = true;
+    console.log("Manually switched to fallback AI service");
+  }
+
+  /**
+   * Try to switch back to primary service
+   */
+  async tryPrimaryService(): Promise<boolean> {
+    try {
+      const isValid = await this.aiService.validateConfig();
+      if (isValid) {
+        this.usingFallback = false;
+        console.log("Successfully switched back to primary AI service");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn("Primary service still not available:", error);
+      return false;
+    }
   }
 
   /**

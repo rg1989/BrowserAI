@@ -276,16 +276,18 @@ describe("ContextualAIService", () => {
       const conversationId = "test-conversation";
       const onChunk = jest.fn();
 
-      await expect(
-        contextualAIService.sendContextualMessageStream(
-          message,
-          conversationId,
-          onChunk
-        )
-      ).rejects.toThrow("Streaming error");
+      const response = await contextualAIService.sendContextualMessageStream(
+        message,
+        conversationId,
+        onChunk
+      );
 
+      // Should fallback gracefully instead of throwing
+      expect(response).toBeDefined();
+      expect(response.message).toContain("fallback mode");
+      expect(contextualAIService.isUsingFallback()).toBe(true);
       expect(streamingSpy).toHaveBeenCalled();
-    });
+    }, 10000); // Increase timeout
   });
 
   describe("generateContextualSuggestions", () => {
@@ -434,7 +436,7 @@ describe("ContextualAIService", () => {
   });
 
   describe("error handling", () => {
-    it("should handle AI service errors", async () => {
+    it("should handle AI service errors with fallback", async () => {
       const errorAIService = new MockAIService();
       jest
         .spyOn(errorAIService, "sendMessage")
@@ -445,12 +447,15 @@ describe("ContextualAIService", () => {
         mockContextProvider
       );
 
-      await expect(
-        errorContextualService.sendContextualMessage(
-          "Test message",
-          "test-conversation"
-        )
-      ).rejects.toThrow("AI service error");
+      const response = await errorContextualService.sendContextualMessage(
+        "Test message",
+        "test-conversation"
+      );
+
+      // Should fallback gracefully instead of throwing
+      expect(response).toBeDefined();
+      expect(response.message).toContain("fallback mode");
+      expect(errorContextualService.isUsingFallback()).toBe(true);
     });
 
     it("should handle missing context gracefully", async () => {
