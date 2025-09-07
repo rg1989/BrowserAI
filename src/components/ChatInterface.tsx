@@ -61,41 +61,117 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   // Load context suggestions when component mounts
   useEffect(() => {
+    // Listen for extension ready event
+    const handleExtensionReady = (event: CustomEvent) => {
+      console.log(
+        "ChatInterface: Extension ready event received",
+        event.detail
+      );
+
+      // Accept the extension as ready if either context is ready OR monitoring is enabled
+      // This allows the extension to work even with partial functionality
+      const isExtensionReady =
+        event.detail.contextReady || event.detail.monitoringEnabled;
+
+      if (isExtensionReady) {
+        setContextStatus({ isReady: true, isLoading: false });
+        loadContextSuggestions();
+        loadPromptSuggestions();
+        loadProactiveInsights();
+        loadWorkflowRecommendations();
+        loadContextSummary();
+      } else {
+        // Extension loaded but not fully functional - still better than loading state
+        setContextStatus({
+          isReady: false,
+          isLoading: false,
+          error: "Extension loaded with limited functionality",
+        });
+      }
+    };
+
+    window.addEventListener(
+      "spotlightExtensionReady",
+      handleExtensionReady as EventListener
+    );
+
+    // Initial check
     loadContextSuggestions();
     loadPromptSuggestions();
     loadProactiveInsights();
     loadWorkflowRecommendations();
     loadContextSummary();
     checkContextStatus();
+
+    return () => {
+      window.removeEventListener(
+        "spotlightExtensionReady",
+        handleExtensionReady as EventListener
+      );
+    };
   }, []);
 
-  // Periodically check context status with timeout
+  // Periodically check context status with timeout - only if still loading
   useEffect(() => {
     let statusInterval: NodeJS.Timeout;
     let timeoutCounter = 0;
-    const maxChecks = 15; // Maximum 30 seconds (15 checks * 2 seconds)
+    const maxChecks = 8; // Maximum 16 seconds (8 checks * 2 seconds)
+    let isMounted = true;
 
-    const checkWithTimeout = () => {
+    const checkWithTimeout = async () => {
+      // Stop checking if component unmounted
+      if (!isMounted) {
+        return;
+      }
+
+      // Check if context is now ready (avoid stale state)
+      const isContextReady = contextProvider.isReady();
+
+      if (isContextReady) {
+        if (isMounted) {
+          setContextStatus({ isReady: true, isLoading: false });
+        }
+        if (statusInterval) {
+          clearInterval(statusInterval);
+        }
+        return;
+      }
+
       timeoutCounter++;
 
       if (timeoutCounter >= maxChecks) {
         // Stop checking after timeout and show error
-        setContextStatus({
-          isReady: false,
-          isLoading: false,
-          error: "Context loading timed out - please refresh the page",
-        });
-        clearInterval(statusInterval);
+        if (isMounted) {
+          setContextStatus({
+            isReady: false,
+            isLoading: false,
+            error: "Context loading timed out - please refresh the page",
+          });
+        }
+        if (statusInterval) {
+          clearInterval(statusInterval);
+        }
         return;
       }
 
-      checkContextStatus();
+      // Only check if still mounted and we haven't found context ready
+      if (isMounted && !isContextReady) {
+        await checkContextStatus();
+      }
     };
 
-    statusInterval = setInterval(checkWithTimeout, 2000); // Check every 2 seconds
+    // Start interval only if context is not ready initially
+    if (!contextProvider.isReady() && contextStatus.isLoading) {
+      statusInterval = setInterval(checkWithTimeout, 2000); // Check every 2 seconds
+    }
 
-    return () => clearInterval(statusInterval);
-  }, []);
+    return () => {
+      isMounted = false;
+      if (statusInterval) {
+        clearInterval(statusInterval);
+      }
+    };
+  }, []); // Empty dependency array to run only once
 
   // Update context summary when context is enabled/disabled
   useEffect(() => {
@@ -162,104 +238,116 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const checkContextStatus = async () => {
     try {
-      const isReady = contextProvider.isReady();
+      console.log("ChatInterface: Checking context status...");
 
-      if (isReady) {
-        setContextStatus({ isReady: true, isLoading: false });
-      } else {
-        // Try to determine why context is not ready
-        let errorMessage = "Context system initializing...";
-        let isLoading = true;
+      // Step 1: Check if the singleton contextProvider is ready
+      let isReady = contextProvider.isReady();
+      console.log("ChatInterface: Singleton contextProvider ready:", isReady);
 
-        try {
-          // Check if monitoring is enabled in storage
-          if (typeof chrome !== "undefined" && chrome.storage) {
-            const result = await chrome.storage.sync.get([
-              "monitoringSettings",
-            ]);
-            const settings = result.monitoringSettings;
+      // Step 2: If not ready, check the global content script
+      if (!isReady) {
+        const globalContentScript = (window as any).__spotlightContentScript;
+        if (globalContentScript) {
+          // Get detailed status for debugging
+          const detailedStatus = globalContentScript.getDetailedStatus
+            ? globalContentScript.getDetailedStatus()
+            : { error: "getDetailedStatus not available" };
+          console.log(
+            "ChatInterface: Content script detailed status:",
+            detailedStatus
+          );
 
-            if (!settings || !settings.enabled) {
-              errorMessage = "Page monitoring disabled";
-              isLoading = false;
-            } else {
-              // Check if we're on an excluded page
-              const currentUrl = window.location.href;
-              if (
-                currentUrl.startsWith("chrome://") ||
-                currentUrl.startsWith("chrome-extension://")
-              ) {
-                errorMessage = "Context not available on this page type";
-                isLoading = false;
-              } else {
-                // Check if content script is available and get actual status
-                try {
-                  const response = await chrome.runtime.sendMessage({
-                    type: "GET_CONTEXTUAL_AI_STATUS",
-                  });
-
-                  if (response && response.success) {
-                    const status = response.status;
-                    if (status.contextReady) {
-                      // Context should be ready but provider says it's not - refresh
-                      setTimeout(() => checkContextStatus(), 1000);
-                      errorMessage = "Context loading...";
-                      isLoading = true;
-                    } else if (status.monitoringEnabled) {
-                      // Check monitoring state for more specific status
-                      switch (status.monitoringState) {
-                        case "STARTING":
-                          errorMessage = "Page monitoring starting...";
-                          isLoading = true;
-                          break;
-                        case "RUNNING":
-                          errorMessage = "Context initializing...";
-                          isLoading = true;
-                          break;
-                        case "ERROR":
-                          errorMessage =
-                            "Page monitoring error - try refreshing";
-                          isLoading = false;
-                          break;
-                        case "STOPPED":
-                          errorMessage = "Page monitoring stopped";
-                          isLoading = false;
-                          break;
-                        default:
-                          errorMessage = "Page monitoring starting...";
-                          isLoading = true;
-                      }
-                    } else {
-                      errorMessage = "Page monitoring not enabled";
-                      isLoading = false;
-                    }
-                  } else {
-                    errorMessage = "Extension not ready";
-                    isLoading = false;
-                  }
-                } catch (runtimeError) {
-                  // Fallback to default behavior if runtime messaging fails
-                  errorMessage = "Page monitoring starting...";
-                  isLoading = true;
-                }
-              }
-            }
-          } else {
-            errorMessage = "Chrome extension API not available";
-            isLoading = false;
+          if (globalContentScript.contextProvider) {
+            isReady = globalContentScript.contextProvider.isReady();
+            console.log(
+              "ChatInterface: Global contextProvider ready:",
+              isReady
+            );
           }
-        } catch (storageError) {
-          errorMessage = "Unable to check monitoring settings";
-          isLoading = false;
+        } else {
+          console.log("ChatInterface: No global content script found");
         }
+      }
 
+      // Step 3: If context is ready, we're good to go
+      if (isReady) {
+        console.log("ChatInterface: Context is ready!");
+        setContextStatus({ isReady: true, isLoading: false });
+        return;
+      }
+
+      // Step 4: Context not ready - check if extension is working at all
+      // Simple check: Can we access Chrome APIs and is monitoring enabled in settings?
+      if (typeof chrome !== "undefined" && chrome.storage) {
+        try {
+          const result = await new Promise<any>((resolve, reject) => {
+            const timeout = setTimeout(
+              () => reject(new Error("Storage timeout")),
+              2000
+            );
+            chrome.storage.sync.get(["monitoringSettings"], (result) => {
+              clearTimeout(timeout);
+              resolve(result);
+            });
+          });
+
+          const settings = result.monitoringSettings;
+          const settingsEnabled = settings ? settings.enabled !== false : true;
+
+          console.log("ChatInterface: Storage check result:", {
+            settings,
+            settingsEnabled,
+          });
+
+          if (!settingsEnabled) {
+            console.log("ChatInterface: Monitoring disabled in settings");
+            setContextStatus({
+              isReady: false,
+              isLoading: false,
+              error: "Page monitoring disabled in settings",
+            });
+            return;
+          }
+
+          // Settings are enabled, but context isn't ready yet
+          // Check if we have a content script with basic functionality
+          const globalContentScript = (window as any).__spotlightContentScript;
+          if (globalContentScript) {
+            // Extension is loaded, even if context isn't fully ready
+            // This allows basic functionality to work
+            console.log(
+              "ChatInterface: Extension loaded, accepting with limited context"
+            );
+            setContextStatus({
+              isReady: true,
+              isLoading: false,
+            });
+            return;
+          }
+
+          // Don't keep setting loading state - let the interval handle retries
+          console.log(
+            "ChatInterface: Context still initializing, will retry..."
+          );
+        } catch (e) {
+          console.log("ChatInterface: Storage check failed:", e);
+          setContextStatus({
+            isReady: false,
+            isLoading: false,
+            error: "Extension not available",
+          });
+        }
+      } else {
+        // No Chrome APIs available
+        console.log("ChatInterface: Chrome APIs not available");
         setContextStatus({
           isReady: false,
-          isLoading,
-          error: errorMessage,
+          isLoading: false,
+          error: "Extension not loaded",
         });
       }
     } catch (error) {
+      console.error("ChatInterface: checkContextStatus failed:", error);
       setContextStatus({
         isReady: false,
         isLoading: false,
@@ -316,7 +404,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setIsLoading(false);
 
       // Call the parent's onSendMessage handler for any additional processing
-      await onSendMessage(message.trim());
+      onSendMessage(message.trim());
 
       // Refresh suggestions and context summary after conversation
       setTimeout(() => {
@@ -476,13 +564,34 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               {!contextStatus.isLoading && !contextStatus.isReady && (
                 <button
                   className="context-retry-button"
-                  onClick={() => {
+                  onClick={async () => {
+                    console.log("ChatInterface: Manual retry triggered");
                     setContextStatus({
                       isReady: false,
                       isLoading: true,
                       error: "Retrying...",
                     });
-                    setTimeout(checkContextStatus, 500);
+                    // Single retry attempt, no loop
+                    try {
+                      await checkContextStatus();
+                      // If still not ready after check, set final error state
+                      if (!contextProvider.isReady()) {
+                        setTimeout(() => {
+                          setContextStatus({
+                            isReady: false,
+                            isLoading: false,
+                            error:
+                              "Context loading failed - please refresh the page",
+                          });
+                        }, 1000);
+                      }
+                    } catch (error) {
+                      setContextStatus({
+                        isReady: false,
+                        isLoading: false,
+                        error: "Retry failed",
+                      });
+                    }
                   }}
                   title="Retry context initialization"
                 >

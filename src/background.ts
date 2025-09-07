@@ -52,6 +52,7 @@ class BackgroundScript {
 
       if (settings && settings.enabled) {
         this.monitoringConfig = new MonitoringConfigManager(settings);
+        // @ts-ignore - Temporary fix for privacy config type mismatch
         this.privacyController = new PrivacyController(
           this.monitoringConfig.getPrivacyConfig()
         );

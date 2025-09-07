@@ -943,6 +943,10 @@ export class SuggestionEngine {
   }
 
   private generateCacheKey(context: AggregatedContext): string {
-    return `${context.metadata.url}_${context.metadata.timestamp}_${context.summary.pageType}`;
+    const url = context.metadata?.url || context.content?.url || "unknown";
+    const timestamp = context.metadata?.timestamp || new Date().toISOString();
+    const pageType =
+      context.summary?.pageType || context.content?.pageType || "unknown";
+    return `${url}_${timestamp}_${pageType}`;
   }
 }

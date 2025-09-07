@@ -162,10 +162,86 @@ export const PopupInterface: React.FC<PopupInterfaceProps> = ({
     }
   }, [onPrivacySettingsClick]);
 
-  // Load settings on mount
+  // Load settings on mount and save defaults if none exist
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    const initializeSettings = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        if (typeof chrome !== "undefined" && chrome.storage) {
+          const result = await chrome.storage.sync.get(["monitoringSettings"]);
+
+          if (result.monitoringSettings) {
+            // Settings exist, load them
+            const loadedSettings = result.monitoringSettings;
+            const calculatedPerformanceLevel = calculatePerformanceLevel(
+              loadedSettings.enabled ?? true,
+              loadedSettings.features ?? {
+                networkMonitoring: true,
+                domObservation: true,
+                contextCollection: true,
+                pluginIntegration: true,
+                interactionTracking: true,
+              }
+            );
+
+            setSettings((prevSettings) => ({
+              ...prevSettings,
+              ...loadedSettings,
+              performanceLevel: calculatedPerformanceLevel,
+            }));
+          } else {
+            // No settings exist, save and set defaults
+            console.log("No monitoring settings found, saving defaults");
+            const defaultSettings = {
+              enabled: true,
+              features: {
+                networkMonitoring: true,
+                domObservation: true,
+                contextCollection: true,
+                pluginIntegration: true,
+                interactionTracking: true,
+              },
+              performanceLevel: "high" as const,
+            };
+
+            await chrome.storage.sync.set({
+              monitoringSettings: defaultSettings,
+            });
+            setSettings(defaultSettings);
+
+            // Notify content scripts about the new settings
+            try {
+              const tabs = await chrome.tabs.query({
+                active: true,
+                currentWindow: true,
+              });
+              if (tabs[0]) {
+                chrome.tabs
+                  .sendMessage(tabs[0].id, {
+                    type: "SETTINGS_UPDATED",
+                    settings: defaultSettings,
+                  })
+                  .catch(() => {
+                    // Content script might not be ready, that's okay
+                  });
+              }
+            } catch (tabError) {
+              console.warn("Failed to notify content script:", tabError);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to initialize settings:", err);
+        setError("Failed to load settings");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeSettings();
+  }, [calculatePerformanceLevel]);
 
   // Listen for storage changes
   useEffect(() => {

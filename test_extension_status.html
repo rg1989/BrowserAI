@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Extension Status Test</title>
+  </head>
+  <body>
+    <h1>Extension Status Test</h1>
+    <div id="status"></div>
+
+    <script>
+      function checkExtensionStatus() {
+        const statusDiv = document.getElementById("status");
+
+        // Check if content script is loaded
+        const contentScript = window.__spotlightContentScript;
+        const testMethod = window.__spotlightTest;
+
+        let status = "<h2>Extension Status:</h2>";
+
+        if (contentScript) {
+          status += "<p>✅ Content script loaded</p>";
+          status += `<p>Monitoring enabled: ${contentScript.monitoringEnabled}</p>`;
+          status += `<p>Has PageContextMonitor: ${!!contentScript.getPageContextMonitor()}</p>`;
+          status += `<p>Has ContextProvider: ${!!contentScript.contextProvider}</p>`;
+          status += `<p>ContextProvider ready: ${contentScript.contextProvider?.isReady()}</p>`;
+
+          if (contentScript.getPageContextMonitor()) {
+            status += `<p>Monitoring state: ${contentScript
+              .getPageContextMonitor()
+              .getState()}</p>`;
+          }
+        } else {
+          status += "<p>❌ Content script not loaded</p>";
+        }
+
+        if (testMethod) {
+          status += "<h3>Test method result:</h3>";
+          const testResult = testMethod();
+          status += `<pre>${JSON.stringify(testResult, null, 2)}</pre>`;
+        }
+
+        statusDiv.innerHTML = status;
+      }
+
+      // Check status every 2 seconds
+      setInterval(checkExtensionStatus, 2000);
+      checkExtensionStatus();
+    </script>
+  </body>
+</html>

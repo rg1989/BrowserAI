@@ -431,7 +431,12 @@ describe("Contextual Suggestions Integration", () => {
         expect(
           screen.queryByTitle("Toggle AI insights")
         ).not.toBeInTheDocument();
-        expect(screen.queryByText(/Context:/)).not.toBeInTheDocument();
+        // Should show error message when context provider is not ready
+        expect(screen.queryByText(/Context:/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Context system not ready/)
+        ).toBeInTheDocument(); // Appears in subtitle
+        expect(screen.getByText(/Loading\.\.\./)).toBeInTheDocument(); // Status indicator shows loading
       });
     });
 

@@ -133,27 +133,53 @@ class ContentScript {
   }
 
   private async initializeMonitoring(): Promise<void> {
+    // Always initialize ContextProvider first - it can work in fallback mode
+    try {
+      this._contextProvider = ContextProvider.getInstance();
+      console.log("Content Script: ContextProvider instance created");
+    } catch (error) {
+      console.error("Content Script: Failed to create ContextProvider:", error);
+      return; // Can't continue without ContextProvider
+    }
+
     try {
       // Load monitoring settings from Chrome storage
       const settings = await this.loadMonitoringSettings();
 
-      if (!settings || !settings.enabled) {
-        console.log("Page context monitoring is disabled");
+      // Default to enabled if no settings found (first time use)
+      const isEnabled = settings ? settings.enabled !== false : true;
+
+      console.log("Content Script: Monitoring initialization", {
+        settings,
+        isEnabled,
+        url: window.location.href,
+      });
+
+      if (!isEnabled) {
+        console.log(
+          "Page context monitoring is disabled - using fallback mode"
+        );
+        this._contextProvider.initialize(null);
+        await this.initializeContextualAI();
         return;
       }
 
-      // Create monitoring configuration
+      // Create monitoring configuration with defaults
       this.monitoringConfig = new MonitoringConfigManager({
-        enabled: settings.enabled,
-        features: settings.features || {},
-        privacy: settings.privacy || {},
-        performance: settings.performance || {},
-        storage: settings.storage || {},
+        enabled: isEnabled,
+        features: settings?.features || {},
+        privacy: settings?.privacy || {},
+        performance: settings?.performance || {},
+        storage: settings?.storage || {},
       });
 
       // Check if current domain/path should be excluded
       if (this.shouldExcludeCurrentPage()) {
-        console.log("Current page excluded from monitoring");
+        console.log(
+          "Current page excluded from monitoring - using fallback mode"
+        );
+        this._contextProvider.initialize(null);
+        await this.initializeContextualAI();
         return;
       }
 
@@ -166,24 +192,45 @@ class ContentScript {
       this.setupMonitoringEventListeners();
 
       // Start monitoring with timeout
+      console.log("Content Script: Starting page context monitoring...");
       const startTimeout = new Promise((_, reject) => {
         setTimeout(() => reject(new Error("Monitoring start timeout")), 10000); // 10 second timeout
       });
 
       await Promise.race([this.pageContextMonitor.start(), startTimeout]);
+      console.log(
+        "Content Script: Page context monitoring started successfully"
+      );
 
       this.isMonitoringEnabled = true;
 
       // Initialize ContextProvider with the PageContextMonitor
-      this._contextProvider = ContextProvider.getInstance();
       this._contextProvider.initialize(this.pageContextMonitor);
 
       // Initialize AI services and ContextualAIService
       await this.initializeContextualAI();
 
-      console.log("Page context monitoring started successfully");
+      console.log(
+        "Content Script: All monitoring components initialized successfully",
+        {
+          monitoringEnabled: this.isMonitoringEnabled,
+          pageContextMonitor: !!this.pageContextMonitor,
+          contextProvider: !!this._contextProvider,
+          contextProviderReady: this._contextProvider?.isReady(),
+          aiServiceManager: !!this._aiServiceManager,
+          contextualAIService: !!this._contextualAIService,
+        }
+      );
     } catch (error) {
-      console.error("Failed to initialize page context monitoring:", error);
+      console.error(
+        "Content Script: Failed to initialize page context monitoring:",
+        error
+      );
+      console.error("Content Script: Error details:", {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        settings: await this.loadMonitoringSettings().catch(() => null),
+      });
 
       // Clean up failed monitoring attempt
       if (this.pageContextMonitor) {
@@ -196,6 +243,22 @@ class ContentScript {
       }
 
       this.isMonitoringEnabled = false;
+
+      // Initialize ContextProvider in fallback mode since monitoring failed
+      try {
+        this._contextProvider.initialize(null);
+        console.log(
+          "Content Script: Initialized ContextProvider in fallback mode"
+        );
+
+        // Still initialize AI services even if monitoring failed
+        await this.initializeContextualAI();
+      } catch (fallbackError) {
+        console.warn(
+          "Content Script: Failed to initialize fallback ContextProvider:",
+          fallbackError
+        );
+      }
 
       // Don't throw - monitoring failure shouldn't break the extension
     }
@@ -446,6 +509,23 @@ class ContentScript {
     return this.pageContextMonitor;
   }
 
+  /**
+   * Get detailed status information for debugging
+   */
+  public getDetailedStatus(): any {
+    return {
+      isMonitoringEnabled: this.isMonitoringEnabled,
+      hasPageContextMonitor: !!this.pageContextMonitor,
+      monitoringState: this.pageContextMonitor?.getState() || "NONE",
+      hasContextProvider: !!this._contextProvider,
+      contextProviderReady: this._contextProvider?.isReady() || false,
+      hasAIServiceManager: !!this._aiServiceManager,
+      hasContextualAIService: !!this._contextualAIService,
+      currentUrl: window.location.href,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   private renderOverlay(): void {
     if (!this.root) return;
 
@@ -530,6 +610,10 @@ class ContentScript {
         this.keyboardManager.cleanup();
       }
 
+      // Remove global references
+      delete (window as any).__spotlightContentScript;
+      delete (window as any).__spotlightTest;
+
       console.log("Spotlight Browser Extension: Content script cleaned up");
     } catch (error) {
       console.error("Error during cleanup:", error);
@@ -541,10 +625,89 @@ class ContentScript {
 let contentScript: ContentScript | null = null;
 
 // Initialize function
-function initializeContentScript(): void {
+async function initializeContentScript(): Promise<void> {
   if (typeof window !== "undefined" && typeof document !== "undefined") {
     try {
       contentScript = new ContentScript();
+
+      // Wait for content script to fully initialize with timeout
+      const initTimeout = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          console.log(
+            "Content script initialization timeout - proceeding anyway"
+          );
+          resolve();
+        }, 8000); // 8 second timeout
+      });
+
+      const initComplete = new Promise<void>((resolve) => {
+        let checkCount = 0;
+        const maxChecks = 80; // 8 seconds (80 * 100ms)
+
+        const checkInitialization = () => {
+          checkCount++;
+
+          // Check if context provider is ready OR if we have basic extension functionality
+          const hasBasicFunctionality =
+            contentScript &&
+            (contentScript.contextProvider?.isReady() ||
+              contentScript.monitoringEnabled);
+
+          if (hasBasicFunctionality || checkCount >= maxChecks) {
+            console.log("Content script initialization complete", {
+              contextReady: contentScript?.contextProvider?.isReady() || false,
+              monitoringEnabled: contentScript?.monitoringEnabled || false,
+              checkCount,
+              proceededAnyway: checkCount >= maxChecks,
+            });
+            resolve();
+          } else {
+            // Check again in 100ms
+            setTimeout(checkInitialization, 100);
+          }
+        };
+
+        // Start checking after a short delay to allow initial setup
+        setTimeout(checkInitialization, 200);
+      });
+
+      // Wait for either completion or timeout
+      await Promise.race([initComplete, initTimeout]);
+
+      // Expose content script globally for ChatInterface access
+      (window as any).__spotlightContentScript = contentScript;
+
+      // Add a simple test method
+      (window as any).__spotlightTest = () => {
+        const testResult = {
+          contentScriptReady: !!contentScript,
+          contextProviderReady:
+            contentScript?.contextProvider?.isReady() || false,
+          monitoringEnabled: contentScript?.monitoringEnabled || false,
+          monitoringState:
+            contentScript?.getPageContextMonitor()?.getState() || "UNKNOWN",
+          pageContextMonitor: !!contentScript?.getPageContextMonitor(),
+          contextProvider: !!contentScript?.contextProvider,
+        };
+        console.log("Content Script: Test method called", testResult);
+        return testResult;
+      };
+
+      // Dispatch a custom event to notify that the extension is ready
+      const readyEvent = new CustomEvent("spotlightExtensionReady", {
+        detail: {
+          contextReady: contentScript?.contextProvider?.isReady() || false,
+          monitoringEnabled: contentScript?.monitoringEnabled || false,
+        },
+      });
+      window.dispatchEvent(readyEvent);
+
+      console.log("Content Script: Initialized and exposed globally", {
+        monitoringEnabled: contentScript?.monitoringEnabled,
+        hasPageContextMonitor: !!contentScript?.getPageContextMonitor(),
+        hasContextProvider: !!contentScript?.contextProvider,
+        contextProviderReady: contentScript?.contextProvider?.isReady(),
+      });
     } catch (error) {
       console.error(
         "Spotlight Browser Extension: Failed to initialize content script",
@@ -556,7 +719,9 @@ function initializeContentScript(): void {
 
 // Initialize when script loads (only in browser environment, not in tests)
 if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
-  initializeContentScript();
+  initializeContentScript().catch((error) => {
+    console.error("Failed to initialize content script:", error);
+  });
 }
 
 // Cleanup on page unload
@@ -567,6 +732,9 @@ window.addEventListener("beforeunload", () => {
     contentScript.cleanup().catch((error) => {
       console.error("Error during page unload cleanup:", error);
     });
+    // Remove global references
+    delete (window as any).__spotlightContentScript;
+    delete (window as any).__spotlightTest;
   }
 });
 
@@ -627,6 +795,7 @@ if (typeof chrome !== "undefined" && chrome.runtime) {
         return true;
 
       case "UPDATE_MONITORING_SETTINGS":
+      case "SETTINGS_UPDATED":
         // Reinitialize monitoring with new settings
         contentScript
           .disableMonitoring()

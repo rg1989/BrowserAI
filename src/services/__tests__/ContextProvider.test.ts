@@ -148,9 +148,14 @@ describe("ContextProvider", () => {
     });
 
     it("should report ready state correctly", () => {
-      expect(contextProvider.isReady()).toBe(false);
+      // ContextProvider is now ready in fallback mode even without initialization
+      expect(contextProvider.isReady()).toBe(true);
 
       contextProvider.initialize(mockPageContextMonitor);
+      expect(contextProvider.isReady()).toBe(true);
+
+      // Test with null initialization (fallback mode)
+      contextProvider.initialize(null);
       expect(contextProvider.isReady()).toBe(true);
     });
   });

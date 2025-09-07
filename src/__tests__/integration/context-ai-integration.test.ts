@@ -271,7 +271,8 @@ describe("Context-AI Integration", () => {
 
       // Initialize with null (simulating error)
       expect(() => errorProvider.initialize(null as any)).not.toThrow();
-      expect(errorProvider.isReady()).toBe(false);
+      // ContextProvider is now ready in fallback mode even with null initialization
+      expect(errorProvider.isReady()).toBe(true);
     });
 
     it("should gracefully handle context retrieval failures", async () => {

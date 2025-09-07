@@ -248,7 +248,7 @@ describe("ContentScript", () => {
       contentScript = new (ContentScript as any)();
     });
 
-    it("should cleanup properly", () => {
+    it("should cleanup properly", async () => {
       // Show overlay to set some state
       const toggleCallback =
         mockKeyboardManager.onToggleOverlay.mock.calls[0][0];
@@ -260,7 +260,7 @@ describe("ContentScript", () => {
       expect(document.body.style.overflow).toBe("hidden");
 
       // Cleanup
-      contentScript.cleanup();
+      await contentScript.cleanup();
 
       expect(
         document.getElementById("spotlight-overlay-container")

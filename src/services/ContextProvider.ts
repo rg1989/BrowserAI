@@ -157,7 +157,7 @@ export class ContextProvider {
   /**
    * Initialize with page context monitor
    */
-  initialize(pageContextMonitor: PageContextMonitor): void {
+  initialize(pageContextMonitor: PageContextMonitor | null): void {
     this.pageContextMonitor = pageContextMonitor;
 
     // Listen for context updates if monitor is available
@@ -175,15 +175,69 @@ export class ContextProvider {
    * Check if context provider is ready
    */
   isReady(): boolean {
-    return (
-      this.pageContextMonitor !== null && this.pageContextMonitor.isActive()
-    );
+    // If we have a pageContextMonitor, check if it's active
+    if (this.pageContextMonitor !== null) {
+      return this.pageContextMonitor.isActive();
+    }
+
+    // If no pageContextMonitor, we're in fallback mode - still considered ready
+    // This allows the extension to work with limited functionality
+    return true;
   }
 
   /**
    * Get current page context for AI
    */
   async getCurrentContext(): Promise<AggregatedContext | null> {
+    // If no pageContextMonitor, return basic fallback context
+    if (!this.pageContextMonitor) {
+      console.log(
+        "ContextProvider: Running in fallback mode - limited context available"
+      );
+      return {
+        content: {
+          title: document.title || "Unknown Page",
+          url: window.location.href,
+          text:
+            document.body?.innerText?.substring(0, 1000) ||
+            "No content available",
+          forms: [], // Add empty forms array for SuggestionEngine
+          links: [], // Add empty links array
+          images: [], // Add empty images array
+          pageType: "unknown", // Add pageType for prompt suggestions
+          metadata: {
+            timestamp: new Date().toISOString(),
+            source: "fallback_mode",
+          },
+        },
+        metadata: {
+          url: window.location.href,
+          title: document.title || "Unknown Page",
+          timestamp: new Date().toISOString(),
+          source: "fallback_mode",
+        },
+        summary: {
+          pageType: "unknown",
+          totalElements: 0,
+          hasInteractiveElements: false,
+        },
+        network: {
+          requests: [],
+          summary: { totalRequests: 0, errorCount: 0, avgResponseTime: 0 },
+        },
+        interactions: {
+          events: [],
+          summary: { totalEvents: 0, clickCount: 0, scrollCount: 0 },
+        },
+        performance: { metrics: {}, summary: "No performance data available" },
+        errors: {
+          jsErrors: [],
+          networkErrors: [],
+          summary: { totalErrors: 0, criticalErrors: 0 },
+        },
+      };
+    }
+
     if (!this.isReady()) {
       console.warn("ContextProvider not ready - page monitoring not active");
       return null;
@@ -747,9 +801,15 @@ export class ContextProvider {
     aggregated: AggregatedContext
   ): PageContext {
     return {
-      url: aggregated.metadata.url,
-      title: aggregated.metadata.title,
-      timestamp: aggregated.metadata.timestamp,
+      url:
+        aggregated.metadata?.url ||
+        aggregated.content?.url ||
+        window.location.href,
+      title:
+        aggregated.metadata?.title ||
+        aggregated.content?.title ||
+        document.title,
+      timestamp: aggregated.metadata?.timestamp || new Date().toISOString(),
       content: aggregated.content,
       layout: {
         viewport: {
